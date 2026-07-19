@@ -230,8 +230,34 @@ function pick_(row, keys) {
   return null;
 }
 
+/** Normalize Month-Year for dashboard (never full Date strings like "Mon Jun 01 2026..."). */
+function cleanMonthYearDisplay_(v, month, year) {
+  var MONTHS = {
+    1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June',
+    7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December'
+  };
+  if (month && year) return (MONTHS[Number(month)] || month) + '-' + year;
+  if (v === null || v === undefined || v === '') return '';
+  if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) {
+    return (MONTHS[v.getMonth() + 1] || (v.getMonth() + 1)) + '-' + v.getFullYear();
+  }
+  var s = String(v).trim();
+  if (s.indexOf('GMT') !== -1 || s.indexOf('Standard Time') !== -1 || s.indexOf('00:00:00') !== -1) {
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) return (MONTHS[d.getMonth() + 1] || (d.getMonth() + 1)) + '-' + d.getFullYear();
+  }
+  var m = s.match(/^([A-Za-z]+)\s*[-/]\s*(20\d{2})$/);
+  if (m) {
+    var name = m[1];
+    name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+    return name + '-' + m[2];
+  }
+  return s;
+}
+
 function toNum_(v) {
   if (v === null || v === undefined || v === '') return null;
+  if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) return null;
   var n = Number(v);
   return isNaN(n) ? null : n;
 }
