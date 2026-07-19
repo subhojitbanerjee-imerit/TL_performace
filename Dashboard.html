@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>iMerit Survey Dashboard — TL · Workflow · Location</title>
+  <title>iMerit Employee Feedback Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -163,6 +163,11 @@
   </style>
 </head>
 <body>
+  <script>
+    // Apps Script template injection (doGet sets liveJson from scorecard tabs)
+    window.__LIVE_DATA__ = <?!= liveJson ?>;
+  </script>
+
   <header>
     <div class="brand">
       <h1>iMerit Employee Feedback Dashboard</h1>
