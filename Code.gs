@@ -280,7 +280,11 @@ function mapScorecardsToDashboard_(rebuildSummary) {
       notes: '',
       year: toNum_(pick_(r, ['Year', 'year'])),
       month: toNum_(pick_(r, ['Month', 'month'])),
-      monthYear: String(pick_(r, ['Month-Year', 'Month Year', 'monthYear']) || '')
+      monthYear: cleanMonthYearDisplay_(
+        pick_(r, ['Month-Year', 'Month Year', 'monthYear']),
+        toNum_(pick_(r, ['Month', 'month'])),
+        toNum_(pick_(r, ['Year', 'year']))
+      )
     };
   }).filter(function (t) { return t.name && t.name !== 'Unknown'; });
 
@@ -300,7 +304,11 @@ function mapScorecardsToDashboard_(rebuildSummary) {
       concern: '',
       year: toNum_(pick_(r, ['Year', 'year'])),
       month: toNum_(pick_(r, ['Month', 'month'])),
-      monthYear: String(pick_(r, ['Month-Year', 'Month Year']) || '')
+      monthYear: cleanMonthYearDisplay_(
+        pick_(r, ['Month-Year', 'Month Year']),
+        toNum_(pick_(r, ['Month', 'month'])),
+        toNum_(pick_(r, ['Year', 'year']))
+      )
     };
   }).filter(function (l) { return l.center && l.center !== 'Unknown'; });
 
@@ -309,6 +317,8 @@ function mapScorecardsToDashboard_(rebuildSummary) {
     var lead = toNum_(pick_(r, ['Lead Score', 'lead']));
     var st = String(pick_(r, ['Status', 'status', 'Flag']) || wfStatus_(lead, n));
     var name = String(pick_(r, ['Workflow', 'workflow']) || 'Unknown');
+    var yW = toNum_(pick_(r, ['Year', 'year']));
+    var mW = toNum_(pick_(r, ['Month', 'month']));
     return {
       workflow: name,
       n: n,
@@ -316,9 +326,9 @@ function mapScorecardsToDashboard_(rebuildSummary) {
       job: toNum_(pick_(r, ['Job Sat', 'job'])),
       tool: toNum_(pick_(r, ['Tool Score', 'tool'])),
       ld: toNum_(pick_(r, ['L&D', 'ld'])),
-      year: toNum_(pick_(r, ['Year', 'year'])),
-      month: toNum_(pick_(r, ['Month', 'month'])),
-      monthYear: String(pick_(r, ['Month-Year', 'Month Year']) || ''),
+      year: yW,
+      month: mW,
+      monthYear: cleanMonthYearDisplay_(pick_(r, ['Month-Year', 'Month Year']), mW, yW),
       wfh: toNum_(pick_(r, ['WFH %', 'wfh'])) || 0,
       wfo: 0,
       centers: String(pick_(r, ['Top Centers', 'Centers', 'centers']) || ''),
@@ -337,7 +347,7 @@ function mapScorecardsToDashboard_(rebuildSummary) {
   raw.periods.forEach(function (r) {
     var y = toNum_(pick_(r, ['Year', 'year']));
     var m = toNum_(pick_(r, ['Month', 'month']));
-    var my = String(pick_(r, ['Month-Year', 'Month Year']) || '');
+    var my = cleanMonthYearDisplay_(pick_(r, ['Month-Year', 'Month Year']), m, y);
     if (!my && y && m) my = (MONTH_NAMES[m] || m) + '-' + y;
     if (!my) return;
     periodMap[my] = {
@@ -464,10 +474,38 @@ function buildTlDashboard() {
     7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December'
   };
 
+  function isDate_(v) {
+    return Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime());
+  }
+
+  /** Always write Month-Year as e.g. "June-2026" — never a Date.toString(). */
+  function formatMonthYear_(month, year) {
+    if (!month || !year) return '';
+    var m = Number(month);
+    var y = Number(year);
+    if (isNaN(m) || isNaN(y)) return '';
+    return (MONTH_NAMES[m] || m) + '-' + y;
+  }
+
   function parseMonth(v) {
     if (v === '' || v === null || v === undefined) return null;
-    if (typeof v === 'number' && !isNaN(v)) return Math.round(v);
+    if (isDate_(v)) return v.getMonth() + 1;
+    if (typeof v === 'number' && !isNaN(v)) {
+      // Sheet sometimes stores month as Excel serial or 1–12
+      if (v >= 1 && v <= 12) return Math.round(v);
+      // Excel serial date (approx)
+      if (v > 30) {
+        var d0 = new Date(Math.round((v - 25569) * 86400 * 1000));
+        if (!isNaN(d0.getTime())) return d0.getUTCMonth() + 1;
+      }
+      return Math.round(v);
+    }
     var s = String(v).trim();
+    // "Mon Jun 01 2026 00:00:00 GMT+0530..." or ISO
+    var dateTry = new Date(s);
+    if (!isNaN(dateTry.getTime()) && /[a-z]{3}|\/|-/i.test(s) && s.length > 8) {
+      return dateTry.getMonth() + 1;
+    }
     var n = Number(s);
     if (!isNaN(n) && n >= 1 && n <= 12) return n;
     var map = {
@@ -475,39 +513,110 @@ function buildTlDashboard() {
       may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9,
       oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12
     };
-    var key = s.toLowerCase();
-    return map[key] || null;
+    // "June-2026" or "Jun 2026"
+    var parts = s.toLowerCase().split(/[\s\-\/]+/);
+    if (parts.length && map[parts[0]]) return map[parts[0]];
+    return map[s.toLowerCase()] || null;
   }
 
   function parseYear(v) {
     if (v === '' || v === null || v === undefined) return null;
-    if (typeof v === 'number' && !isNaN(v)) return Math.round(v);
-    var n = Number(String(v).trim());
+    if (isDate_(v)) return v.getFullYear();
+    if (typeof v === 'number' && !isNaN(v)) {
+      if (v >= 2000 && v <= 2100) return Math.round(v);
+      if (v > 30000) {
+        var d1 = new Date(Math.round((v - 25569) * 86400 * 1000));
+        if (!isNaN(d1.getTime())) return d1.getUTCFullYear();
+      }
+      return Math.round(v);
+    }
+    var s = String(v).trim();
+    var yMatch = s.match(/(20\d{2})/);
+    if (yMatch) return Number(yMatch[1]);
+    var n = Number(s);
     return (!isNaN(n) && n >= 2000 && n <= 2100) ? n : null;
+  }
+
+  /**
+   * Parse Month-Year cell: Date objects → June-2026; strings like "June-2026" kept clean.
+   */
+  function parseMonthYearCell_(v) {
+    if (v === '' || v === null || v === undefined) return { month: null, year: null, monthYear: '' };
+    if (isDate_(v)) {
+      var m = v.getMonth() + 1;
+      var y = v.getFullYear();
+      return { month: m, year: y, monthYear: formatMonthYear_(m, y) };
+    }
+    if (typeof v === 'number' && v > 30000) {
+      var d2 = new Date(Math.round((v - 25569) * 86400 * 1000));
+      if (!isNaN(d2.getTime())) {
+        var m2 = d2.getUTCMonth() + 1;
+        var y2 = d2.getUTCFullYear();
+        return { month: m2, year: y2, monthYear: formatMonthYear_(m2, y2) };
+      }
+    }
+    var s = String(v).trim();
+    // Already clean "June-2026" / "Jun-2026"
+    var clean = s.match(/^([A-Za-z]+)\s*[-/]\s*(20\d{2})$/);
+    if (clean) {
+      var mm = parseMonth(clean[1]);
+      var yy = Number(clean[2]);
+      return { month: mm, year: yy, monthYear: formatMonthYear_(mm, yy) };
+    }
+    // Full date string from Date.toString()
+    var d3 = new Date(s);
+    if (!isNaN(d3.getTime()) && s.length > 10) {
+      var m3 = d3.getMonth() + 1;
+      var y3 = d3.getFullYear();
+      return { month: m3, year: y3, monthYear: formatMonthYear_(m3, y3) };
+    }
+    return { month: null, year: null, monthYear: '' };
   }
 
   function rowPeriod(row) {
     var month = colMonth >= 0 ? parseMonth(row[colMonth]) : null;
     var year = colYear >= 0 ? parseYear(row[colYear]) : null;
-    var my = colMonthYear >= 0 ? String(row[colMonthYear] || '').trim() : '';
-    if (!my && month && year) my = (MONTH_NAMES[month] || month) + '-' + year;
+    var my = '';
+
+    // Prefer dedicated Month-Year column, but always normalize to "MonthName-Year"
+    if (colMonthYear >= 0 && row[colMonthYear] !== '' && row[colMonthYear] != null) {
+      var parsedMy = parseMonthYearCell_(row[colMonthYear]);
+      if (!month && parsedMy.month) month = parsedMy.month;
+      if (!year && parsedMy.year) year = parsedMy.year;
+      if (parsedMy.monthYear) my = parsedMy.monthYear;
+    }
+
     // Fallback from Timestamp (col 0 often)
     if ((!month || !year) && row[0]) {
       var d = row[0];
-      if (Object.prototype.toString.call(d) === '[object Date]' && !isNaN(d)) {
+      if (isDate_(d)) {
         if (!month) month = d.getMonth() + 1;
         if (!year) year = d.getFullYear();
-        if (!my) my = (MONTH_NAMES[month] || month) + '-' + year;
       } else {
         var m = String(d).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
         if (m) {
           // assume M/D/YYYY
           if (!month) month = Number(m[1]);
           if (!year) year = Number(m[3]);
-          if (!my) my = (MONTH_NAMES[month] || month) + '-' + year;
+        } else {
+          var d4 = new Date(String(d));
+          if (!isNaN(d4.getTime())) {
+            if (!month) month = d4.getMonth() + 1;
+            if (!year) year = d4.getFullYear();
+          }
         }
       }
     }
+
+    // Final clean label — never leave a raw Date string in monthYear
+    my = formatMonthYear_(month, year) || my;
+    if (my.indexOf('GMT') !== -1 || my.indexOf('Standard Time') !== -1 || my.indexOf(' 00:00:00') !== -1) {
+      var fix = parseMonthYearCell_(my);
+      my = fix.monthYear || formatMonthYear_(month, year);
+      if (!month && fix.month) month = fix.month;
+      if (!year && fix.year) year = fix.year;
+    }
+
     return { month: month, year: year, monthYear: my };
   }
 
@@ -613,7 +722,7 @@ function buildTlDashboard() {
     return 'OK';
   }
 
-  // Write TL scorecard (with Month / Year / Month-Year — no WFH %)
+  // Write TL scorecard (Year number, Month 1–12, Month-Year like "June-2026")
   var tlSheet = ss.getSheetByName('TL_Scorecard') || ss.insertSheet('TL_Scorecard');
   tlSheet.clear();
   var tlOut = [['Lead', 'Year', 'Month', 'Month-Year', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D', 'Centers', 'Flag']];
@@ -623,11 +732,13 @@ function buildTlDashboard() {
     var x = byLead[key];
     var ls = avg(x.lead);
     var centers = Object.keys(x.centers).join(', ');
+    var myClean = formatMonthYear_(x.month, x.year) || String(x.monthYear || '').replace(/Mon .*|GMT.*|Standard Time|\(.*\)/g, '').trim();
+    if (myClean.indexOf('GMT') !== -1 || myClean.length > 20) myClean = formatMonthYear_(x.month, x.year);
     tlOut.push([
       x.name || key,
       x.year || '',
       x.month || '',
-      x.monthYear || '',
+      myClean || '',
       x.n,
       ls !== null ? Math.round(ls * 100) / 100 : '',
       avg(x.job) !== null ? Math.round(avg(x.job) * 100) / 100 : '',
@@ -639,6 +750,10 @@ function buildTlDashboard() {
   });
   tlSheet.getRange(1, 1, tlOut.length, tlOut[0].length).setValues(tlOut);
   tlSheet.setFrozenRows(1);
+  // Force Month-Year column as plain text so Sheets does not re-parse as Date
+  if (tlOut.length > 1) {
+    tlSheet.getRange(2, 4, tlOut.length - 1, 1).setNumberFormat('@');
+  }
   tlSheet.autoResizeColumns(1, 11);
 
   // Write Location scorecard
@@ -648,11 +763,12 @@ function buildTlDashboard() {
   Object.keys(byLoc).sort().forEach(function (key) {
     var x = byLoc[key];
     var wfhPct = Math.round((x.wfh / x.n) * 1000) / 10;
+    var myLoc = formatMonthYear_(x.month, x.year) || '';
     locOut.push([
       x.name || key,
       x.year || '',
       x.month || '',
-      x.monthYear || '',
+      myLoc,
       x.n,
       avg(x.lead) !== null ? Math.round(avg(x.lead) * 100) / 100 : '',
       avg(x.job) !== null ? Math.round(avg(x.job) * 100) / 100 : '',
@@ -664,6 +780,9 @@ function buildTlDashboard() {
   });
   locSheet.getRange(1, 1, locOut.length, locOut[0].length).setValues(locOut);
   locSheet.setFrozenRows(1);
+  if (locOut.length > 1) {
+    locSheet.getRange(2, 4, locOut.length - 1, 1).setNumberFormat('@');
+  }
   locSheet.autoResizeColumns(1, 11);
 
   // Period summary (for dashboard Year / Month filters)
@@ -672,8 +791,10 @@ function buildTlDashboard() {
   var perOut = [['Month-Year', 'Year', 'Month', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D']];
   Object.keys(byPeriod).sort().forEach(function (key) {
     var x = byPeriod[key];
+    var myPer = formatMonthYear_(x.month, x.year) || key;
+    if (String(myPer).indexOf('GMT') !== -1) myPer = formatMonthYear_(x.month, x.year);
     perOut.push([
-      x.monthYear || key,
+      myPer,
       x.year || '',
       x.month || '',
       x.n,
@@ -685,6 +806,9 @@ function buildTlDashboard() {
   });
   perSheet.getRange(1, 1, perOut.length, perOut[0].length).setValues(perOut);
   perSheet.setFrozenRows(1);
+  if (perOut.length > 1) {
+    perSheet.getRange(2, 1, perOut.length - 1, 1).setNumberFormat('@');
+  }
   perSheet.autoResizeColumns(1, 8);
 
   // Workflow scorecard
@@ -742,11 +866,12 @@ function buildTlDashboard() {
       if (ls !== null && (ls < 3.8 || (ls < 4.0 && x.n >= 5))) st = 'WATCH';
       if (ls !== null && ls < 3.5) st = 'RISK';
       if (x.n < 5) st = 'LOW N';
+      var myWf = formatMonthYear_(x.month, x.year) || '';
       wfOut.push([
         x.name || key,
         x.year || '',
         x.month || '',
-        x.monthYear || '',
+        myWf,
         x.n,
         ls !== null ? Math.round(ls * 100) / 100 : '',
         avg(x.job) !== null ? Math.round(avg(x.job) * 100) / 100 : '',
@@ -759,6 +884,9 @@ function buildTlDashboard() {
     });
     wfSheet.getRange(1, 1, wfOut.length, wfOut[0].length).setValues(wfOut);
     wfSheet.setFrozenRows(1);
+    if (wfOut.length > 1) {
+      wfSheet.getRange(2, 4, wfOut.length - 1, 1).setNumberFormat('@');
+    }
     wfSheet.autoResizeColumns(1, 12);
   }
 
