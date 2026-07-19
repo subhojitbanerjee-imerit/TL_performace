@@ -166,7 +166,7 @@
   <header>
     <div class="brand">
       <h1>iMerit Employee Feedback Dashboard</h1>
-      <span id="brandSub">Source: responses_consolidated · TL · Workflow · Location · Month/Year filters</span>
+      <span id="brandSub">Source: responses_consolidated · TL · Workflow · Location · Year / Month filters</span>
     </div>
     <div class="controls">
       <select id="filterYear" title="Filter by year">
@@ -174,9 +174,6 @@
       </select>
       <select id="filterMonth" title="Filter by month">
         <option value="all">All months</option>
-      </select>
-      <select id="filterMonthYear" title="Filter by Month-Year">
-        <option value="all">All periods</option>
       </select>
       <select id="filterCenter" title="Filter by center">
         <option value="all">All centers</option>
@@ -849,8 +846,7 @@
     function getPeriodFilters() {
       return {
         year: document.getElementById('filterYear').value,
-        month: document.getElementById('filterMonth').value,
-        monthYear: document.getElementById('filterMonthYear').value
+        month: document.getElementById('filterMonth').value
       };
     }
 
@@ -858,13 +854,11 @@
       const f = getPeriodFilters();
       if (f.year !== 'all' && String(row.year) !== String(f.year)) return false;
       if (f.month !== 'all' && String(row.month) !== String(f.month)) return false;
-      if (f.monthYear !== 'all' && String(row.monthYear) !== String(f.monthYear)) return false;
       return true;
     }
 
     function periodLabel() {
       const f = getPeriodFilters();
-      if (f.monthYear !== 'all') return f.monthYear;
       if (f.month !== 'all' && f.year !== 'all') return toMonthYear(f.month, f.year);
       if (f.month !== 'all') return (MONTH_NAMES[Number(f.month)] || f.month) + ' (all years)';
       if (f.year !== 'all') return 'Year ' + f.year;
@@ -872,10 +866,9 @@
     }
 
     function updateBrandSub() {
-      const n = filteredTls().reduce((s, t) => s + (t.n || 0), 0);
       document.getElementById('brandSub').textContent =
         'Source: responses_consolidated · ' + periodLabel() +
-        ' · filters: Year / Month / Month-Year · TL · Workflow · Location';
+        ' · filters: Year / Month · TL · Workflow · Location';
     }
 
     function filteredTls() {
@@ -932,7 +925,7 @@
         { label:'Lead performance', value: (lead ?? KPI.lead).toFixed(2), sub:'Avg of 9 items', cls: scoreColor(lead ?? KPI.lead) },
         { label:'Labeling tool', value: (tool ?? KPI.tool).toFixed(2), sub:'Needs improvement', cls: scoreColor(tool ?? KPI.tool) },
         { label:'L&D / Trainer', value: (ld ?? KPI.ld).toFixed(2), sub:'Target 4.0+', cls: scoreColor(ld ?? KPI.ld) },
-        { label:'Period', value: periodLabel(), sub:'Year / Month / Month-Year', cls:'' }
+        { label:'Period', value: periodLabel(), sub:'Year / Month', cls:'' }
       ];
       document.getElementById('kpiGrid').innerHTML = items.map(i => `
         <div class="kpi">
@@ -1453,10 +1446,8 @@
     function syncMonthOptionsFromYear() {
       const yearSel = document.getElementById('filterYear');
       const monthSel = document.getElementById('filterMonth');
-      const mySel = document.getElementById('filterMonthYear');
       const y = yearSel.value;
       const prevMonth = monthSel.value;
-      const prevMy = mySel.value;
 
       const months = [...new Set(
         PERIODS.filter(p => y === 'all' || String(p.year) === y).map(p => p.month)
@@ -1470,20 +1461,6 @@
         monthSel.appendChild(o);
       });
       if ([...monthSel.options].some(o => o.value === prevMonth)) monthSel.value = prevMonth;
-
-      const mys = PERIODS.filter(p => {
-        if (y !== 'all' && String(p.year) !== y) return false;
-        if (monthSel.value !== 'all' && String(p.month) !== monthSel.value) return false;
-        return true;
-      });
-      mySel.innerHTML = '<option value="all">All periods</option>';
-      mys.forEach(p => {
-        const o = document.createElement('option');
-        o.value = p.monthYear;
-        o.textContent = p.monthYear;
-        mySel.appendChild(o);
-      });
-      if ([...mySel.options].some(o => o.value === prevMy)) mySel.value = prevMy;
     }
 
     // Tabs
@@ -1503,33 +1480,7 @@
       syncMonthOptionsFromYear();
       refresh();
     });
-    document.getElementById('filterMonth').addEventListener('change', () => {
-      // Keep Month-Year in sync when month picked
-      const y = document.getElementById('filterYear').value;
-      const m = document.getElementById('filterMonth').value;
-      const my = document.getElementById('filterMonthYear');
-      syncMonthOptionsFromYear();
-      if (y !== 'all' && m !== 'all') {
-        const label = toMonthYear(m, y);
-        if ([...my.options].some(o => o.value === label)) my.value = label;
-      } else {
-        my.value = 'all';
-      }
-      refresh();
-    });
-    document.getElementById('filterMonthYear').addEventListener('change', () => {
-      const my = document.getElementById('filterMonthYear').value;
-      if (my !== 'all') {
-        const p = PERIODS.find(x => x.monthYear === my);
-        if (p) {
-          document.getElementById('filterYear').value = String(p.year);
-          syncMonthOptionsFromYear();
-          document.getElementById('filterMonth').value = String(p.month);
-          document.getElementById('filterMonthYear').value = my;
-        }
-      }
-      refresh();
-    });
+    document.getElementById('filterMonth').addEventListener('change', refresh);
     document.getElementById('filterCenter').addEventListener('change', refresh);
     document.getElementById('filterWorkflow').addEventListener('change', refresh);
     document.getElementById('filterFlag').addEventListener('change', refresh);
@@ -1587,13 +1538,12 @@
       o.value = String(y); o.textContent = String(y);
       yearSel.appendChild(o);
     });
-    // Default to latest period (works for 1 or many months of live data)
+    // Default to latest year/month (works for 1 or many months of live data)
     if (PERIODS.length >= 1) {
       const last = PERIODS[PERIODS.length - 1];
       yearSel.value = String(last.year);
       syncMonthOptionsFromYear();
       document.getElementById('filterMonth').value = String(last.month);
-      document.getElementById('filterMonthYear').value = last.monthYear;
     } else {
       syncMonthOptionsFromYear();
     }
