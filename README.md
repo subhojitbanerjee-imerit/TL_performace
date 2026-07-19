@@ -78,12 +78,13 @@ SOURCE_SHEET_GID = 1126318129
    - Execute as: **Me**  
    - Who has access: your org / Anyone  
    - Entry point is **`doGet`** (included in Code.gs)  
-4. Open the Web App URL → click **Rebuild scorecards now**  
-5. Or run **`buildTlDashboard`** from the editor Run menu  
+4. Open the Web App URL → it **rebuilds scorecards** and opens the **interactive dashboard** (Overview / TL / Location / Workflow / Period + Year·Month filters)  
+5. Faster reload without rebuild: add `?skipRebuild=1` to the Web App URL  
+6. Or run **`buildTlDashboard`** from the editor Run menu  
 
 Creates/refreshes **TL_Scorecard**, **Location_Scorecard**, **Workflow_Scorecard**, **Period_Scorecard** (with Year / Month / Month-Year).  
 
-If you see **“Script function not found: doGet”**, the project still has an old version without `doGet` — paste the latest `Code.gs` and **Deploy → Manage deployments → Edit → New version → Deploy**.
+If you still only see a status page (“Scorecards updated automatically”), the deployment is on an old version — paste latest `Code.gs` and **Deploy → Manage deployments → Edit → New version → Deploy**.
 
 ---
 

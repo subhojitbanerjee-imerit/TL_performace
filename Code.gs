@@ -4,9 +4,11 @@
  * Deploy as Web App (Execute as: Me · Who has access: Anyone in org / Anyone):
  *   Deploy → New deployment → Type: Web app
  *   Entry point: doGet  (required for Web App URL)
- *   Opening the Web App URL auto-runs buildTlDashboard (no button click).
+ *   Opening the Web App URL auto-runs buildTlDashboard then shows the
+ *   interactive DASHBOARD (charts + filters) — not only a status page.
  *
  * Or run buildTlDashboard from the editor.
+ * Optional: ?skipRebuild=1 for faster dashboard open from existing tabs.
  * Optional time trigger: Triggers → buildTlDashboard → Time-driven → Hourly/Daily.
  *
  * Spreadsheet:
@@ -68,31 +70,48 @@ function notify_(message) {
 /**
  * Web App entry point — required when deploying as Web App.
  *
- * Default: REBUILDS scorecards automatically on every open.
- * Optional params:
- *   ?action=home     — show home only (no rebuild)
- *   ?action=rebuild  — same as default (explicit rebuild)
- *   ?view=json       — return JSON summary instead of HTML
+ * Default: rebuild scorecards, then show INTERACTIVE DASHBOARD.
+ *
+ * Params:
+ *   ?action=dashboard  — show dashboard (rebuild first unless skipRebuild=1)
+ *   ?action=rebuild    — same as dashboard (rebuild + dashboard)
+ *   ?action=home       — status page only
+ *   ?skipRebuild=1     — open dashboard from existing scorecard tabs (faster)
+ *   ?view=json         — JSON data dump
  */
 function doGet(e) {
   e = e || { parameter: {} };
-  var action = (e.parameter && e.parameter.action) || 'rebuild';
-  var view = (e.parameter && e.parameter.view) || 'html';
+  var p = e.parameter || {};
+  var action = p.action || 'dashboard';
+  var view = p.view || 'html';
+  var skipRebuild = String(p.skipRebuild || '') === '1';
 
-  // Only skip auto-rebuild if user explicitly asks for home
   if (action === 'home') {
     return htmlPage_('TL Performance Dashboard', homeHtml_(), true);
   }
 
-  // Auto rebuild on open (default)
   try {
-    var result = buildTlDashboard();
+    var result = null;
+    if (!skipRebuild && action !== 'view') {
+      result = buildTlDashboard();
+    }
+    var data = loadDashboardData_();
+    data.meta = data.meta || {};
+    data.meta.rebuilt = !skipRebuild;
+    data.meta.rebuildAt = new Date().toISOString();
+    data.meta.rebuildSummary = result;
+
     if (view === 'json') {
       return ContentService
-        .createTextOutput(JSON.stringify({ ok: true, result: result }))
+        .createTextOutput(JSON.stringify({ ok: true, result: result, data: data }))
         .setMimeType(ContentService.MimeType.JSON);
     }
-    return htmlPage_('Scorecards rebuilt', rebuildSuccessHtml_(result), true);
+
+    // Interactive dashboard (charts + filters)
+    return HtmlService.createHtmlOutput(buildDashboardHtml_(data))
+      .setTitle('TL Performance Dashboard')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   } catch (err) {
     if (view === 'json') {
       return ContentService
@@ -100,18 +119,18 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
     return htmlPage_(
-      'Rebuild failed',
-      '<h1>Rebuild failed</h1>' +
+      'Dashboard error',
+      '<h1>Could not load dashboard</h1>' +
         '<div class="card"><p class="err">' + escapeHtml_(String(err.message || err)) + '</p>' +
-        '<p class="actions"><a class="btn" href="?action=rebuild">Try again</a> ' +
-        '<a class="btn secondary" href="?action=home">Home</a></p></div>',
+        '<p class="actions"><a class="btn" href="?action=dashboard">Retry</a> ' +
+        '<a class="btn secondary" href="?action=dashboard&skipRebuild=1">Open without rebuild</a></p></div>',
       false
     );
   }
 }
 
 /**
- * Optional JSON API: POST or GET ?action=api&mode=rebuild
+ * Optional JSON API rebuild
  */
 function doPost(e) {
   try {
@@ -130,39 +149,15 @@ function homeHtml_() {
   var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit';
   return '' +
     '<h1>TL Performance Dashboard</h1>' +
-    '<p class="muted">Opening the Web App URL auto-rebuilds scorecards. This is the idle home view.</p>' +
+    '<p class="muted">The Web App URL opens the full dashboard after rebuilding scorecards.</p>' +
     '<div class="card">' +
     '<p><strong>Spreadsheet</strong><br><a href="' + sheetUrl + '" target="_blank" rel="noopener">Open Google Sheet</a></p>' +
     '<p><strong>Source tab gid</strong> ' + SOURCE_SHEET_GID + '</p>' +
-    '<p>Tabs: <code>TL_Scorecard</code>, <code>Location_Scorecard</code>, ' +
-    '<code>Workflow_Scorecard</code>, <code>Period_Scorecard</code></p>' +
     '<p class="actions">' +
-    '<a class="btn" href="?action=rebuild">Rebuild scorecards</a>' +
+    '<a class="btn" href="?action=dashboard">Open dashboard (rebuild)</a> ' +
+    '<a class="btn secondary" href="?action=dashboard&skipRebuild=1">Open dashboard (fast)</a>' +
     '</p>' +
     '</div>';
-}
-
-function rebuildSuccessHtml_(result) {
-  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit';
-  result = result || {};
-  return '' +
-    '<h1>Scorecards updated automatically</h1>' +
-    '<p class="muted">Rebuild ran on page load · ' + new Date().toLocaleString() + '</p>' +
-    '<div class="card ok">' +
-    '<p><strong>Source:</strong> ' + escapeHtml_(result.sourceName || '') +
-    ' (gid ' + escapeHtml_(String(result.sourceGid || '')) + ')</p>' +
-    '<p><strong>Rows processed:</strong> ' + (result.rows || 0) + '</p>' +
-    '<p><strong>Leads:</strong> ' + (result.leads || 0) +
-    ' · <strong>Locations:</strong> ' + (result.locations || 0) +
-    ' · <strong>Workflows:</strong> ' + (result.workflows || 0) +
-    ' · <strong>Periods:</strong> ' + (result.periods || 0) + '</p>' +
-    '<p class="actions">' +
-    '<a class="btn" href="' + sheetUrl + '" target="_blank" rel="noopener">Open spreadsheet</a> ' +
-    '<a class="btn secondary" href="?action=rebuild">Rebuild again</a>' +
-    '</p>' +
-    '</div>' +
-    '<p class="muted">Open the scorecard tabs in the sheet and filter by Year / Month / Month-Year.</p>' +
-    '<script>/* auto-rebuild complete */</script>';
 }
 
 function htmlPage_(title, bodyHtml, ok) {
@@ -174,14 +169,11 @@ function htmlPage_(title, bodyHtml, ok) {
     'h1{font-size:1.4rem;margin:0 0 8px}' +
     '.muted{color:#93a0b8;font-size:.9rem}' +
     '.card{background:#121a2b;border:1px solid #243049;border-radius:12px;padding:18px;max-width:640px;margin:16px 0}' +
-    '.card.ok{border-color:#22c55e55}' +
     '.err{color:#fca5a5}' +
     'a{color:#93c5fd}' +
     '.btn{display:inline-block;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff!important;text-decoration:none;' +
     'padding:10px 16px;border-radius:10px;font-weight:600;margin:4px 4px 4px 0}' +
     '.btn.secondary{background:#1e293b;border:1px solid #334155}' +
-    'code{background:#1e293b;padding:2px 6px;border-radius:4px;font-size:.85rem}' +
-    '.actions{margin-top:14px}' +
     '</style></head><body>' + bodyHtml + '</body></html>';
   return HtmlService.createHtmlOutput(html)
     .setTitle(title)
@@ -194,6 +186,174 @@ function escapeHtml_(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/**
+ * Read scorecard tabs into dashboard payload.
+ */
+function loadDashboardData_() {
+  var ss = getTargetSpreadsheet_();
+  return {
+    tls: sheetToObjects_(ss.getSheetByName('TL_Scorecard')),
+    locations: sheetToObjects_(ss.getSheetByName('Location_Scorecard')),
+    workflows: sheetToObjects_(ss.getSheetByName('Workflow_Scorecard')),
+    periods: sheetToObjects_(ss.getSheetByName('Period_Scorecard')),
+    meta: {
+      spreadsheetId: SPREADSHEET_ID,
+      sheetUrl: 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit',
+      loadedAt: new Date().toISOString()
+    }
+  };
+}
+
+function sheetToObjects_(sheet) {
+  if (!sheet) return [];
+  var values = sheet.getDataRange().getValues();
+  if (!values || values.length < 2) return [];
+  var headers = values[0].map(function (h) { return String(h || '').trim(); });
+  var rows = [];
+  for (var r = 1; r < values.length; r++) {
+    var obj = {};
+    var empty = true;
+    for (var c = 0; c < headers.length; c++) {
+      var key = headers[c] || ('col' + c);
+      var v = values[r][c];
+      if (v !== '' && v !== null && v !== undefined) empty = false;
+      obj[key] = v;
+    }
+    if (!empty) rows.push(obj);
+  }
+  return rows;
+}
+
+/**
+ * Full interactive dashboard HTML (Chart.js + filters).
+ * Data is embedded as JSON from scorecard tabs.
+ */
+function buildDashboardHtml_(data) {
+  var payload = JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+
+  return '<!DOCTYPE html>\n' +
+'<html lang="en"><head><meta charset="utf-8"/>' +
+'<meta name="viewport" content="width=device-width,initial-scale=1"/>' +
+'<title>TL Performance Dashboard</title>' +
+'<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>' +
+'<style>' +
+':root{--bg:#0b1220;--panel:#121a2b;--panel2:#182338;--border:#243049;--text:#e8eefc;--muted:#93a0b8;--good:#22c55e;--warn:#f59e0b;--bad:#ef4444}' +
+'*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1000px 500px at 10% -10%,#1a2744,transparent),var(--bg);color:var(--text)}' +
+'header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(11,18,32,.92);border-bottom:1px solid var(--border);backdrop-filter:blur(10px)}' +
+'header h1{margin:0;font-size:1.05rem}header .sub{color:var(--muted);font-size:.78rem}' +
+'.controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center}' +
+'select,input,button{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;padding:7px 10px;font-size:.82rem}' +
+'button{cursor:pointer;font-weight:600}button.primary{background:linear-gradient(135deg,#2563eb,#4f46e5);border:none}' +
+'main{padding:14px 16px 36px;max-width:1400px;margin:0 auto}' +
+'.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}' +
+'.tab{padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;font-weight:600;font-size:.82rem}' +
+'.tab.active{color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);border-color:transparent}' +
+'.section{display:none}.section.active{display:block}' +
+'.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px}' +
+'@media(max-width:1000px){.kpis{grid-template-columns:repeat(3,1fr)}}' +
+'@media(max-width:600px){.kpis{grid-template-columns:repeat(2,1fr)}}' +
+'.kpi{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--border);border-radius:12px;padding:12px}' +
+'.kpi .l{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}.kpi .v{font-size:1.35rem;font-weight:800;margin-top:4px}.kpi .s{color:var(--muted);font-size:.75rem}' +
+'.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}' +
+'.grid2{display:grid;grid-template-columns:1.2fr 1fr;gap:12px}@media(max-width:900px){.grid2{grid-template-columns:1fr}}' +
+'.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px}' +
+'.card h2{margin:0 0 4px;font-size:.95rem}.hint{color:var(--muted);font-size:.78rem;margin:0 0 10px}' +
+'.chart{position:relative;height:340px}.chart.tall{height:480px}' +
+'table{width:100%;border-collapse:collapse;font-size:.82rem}th,td{padding:8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}' +
+'th{color:var(--muted);font-size:.7rem;text-transform:uppercase;position:sticky;top:0;background:var(--panel);cursor:pointer}' +
+'.scroll{max-height:520px;overflow:auto;border:1px solid var(--border);border-radius:10px}' +
+'.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.7rem;font-weight:700}' +
+'.badge.top{background:rgba(34,197,94,.15);color:var(--good)}.badge.ok{background:rgba(91,140,255,.15);color:#93c5fd}.badge.bottom{background:rgba(239,68,68,.15);color:#fca5a5}' +
+'.badge.watch{background:rgba(245,158,11,.15);color:#fcd34d}.badge.risk{background:rgba(239,68,68,.2);color:#fecaca}' +
+'a{color:#93c5fd}' +
+'</style></head><body>' +
+'<header><div><h1>TL Performance Dashboard</h1><div class="sub" id="sub">Loading…</div></div>' +
+'<div class="controls">' +
+'<select id="fYear"><option value="all">All years</option></select>' +
+'<select id="fMonth"><option value="all">All months</option></select>' +
+'<select id="fMY"><option value="all">All periods</option></select>' +
+'<select id="fFlag"><option value="all">All flags</option><option value="TOP">TOP</option><option value="OK">OK</option><option value="BOTTOM">BOTTOM</option><option value="WATCH">WATCH</option><option value="RISK">RISK</option><option value="LOW N">LOW N</option></select>' +
+'<input id="fSearch" type="search" placeholder="Search TL / workflow…"/>' +
+'<button class="primary" type="button" onclick="location.href=\'?action=dashboard\'">Refresh data</button>' +
+'<button type="button" onclick="location.href=\'?action=dashboard&skipRebuild=1\'">Fast reload</button>' +
+'<a id="sheetLink" href="#" target="_blank" rel="noopener"><button type="button">Open sheet</button></a>' +
+'</div></header>' +
+'<main>' +
+'<div class="tabs" id="tabs">' +
+'<div class="tab active" data-t="overview">Overview</div>' +
+'<div class="tab" data-t="tl">TL Scorecard</div>' +
+'<div class="tab" data-t="loc">Location</div>' +
+'<div class="tab" data-t="wf">Workflow</div>' +
+'<div class="tab" data-t="period">Period</div>' +
+'</div>' +
+'<section class="section active" id="s-overview"><div class="kpis" id="kpis"></div>' +
+'<div class="grid2"><div class="card"><h2>Lead score distribution by TL</h2><p class="hint">Sorted high → low · Green TOP · Blue OK · Red BOTTOM</p><div class="chart tall" id="tlChartWrap"><canvas id="cTl"></canvas></div></div>' +
+'<div class="card"><h2>Scores by location</h2><p class="hint">Lead · Job · Tool · L&D</p><div class="chart"><canvas id="cLoc"></canvas></div></div></div>' +
+'<div class="card"><h2>Workflow volume & lead score</h2><div class="chart"><canvas id="cWf"></canvas></div></div></section>' +
+'<section class="section" id="s-tl"><div class="card"><h2>Team Lead performance scorecard</h2><p class="hint">No WFH% · filter by Year / Month / Month-Year</p><div class="scroll"><table id="tTl"><thead><tr>' +
+'<th data-k="Lead">Lead</th><th data-k="Year">Year</th><th data-k="Month">Month</th><th data-k="Month-Year">Month-Year</th>' +
+'<th data-k="n"># Resp</th><th data-k="lead">Lead Score</th><th data-k="job">Job Sat</th><th data-k="tool">Tool</th><th data-k="ld">L&D</th>' +
+'<th data-k="Centers">Centers</th><th data-k="Flag">Flag</th></tr></thead><tbody></tbody></table></div></div></section>' +
+'<section class="section" id="s-loc"><div class="card"><h2>Location scorecard</h2><div class="scroll"><table id="tLoc"><thead><tr>' +
+'<th>Center</th><th>Year</th><th>Month</th><th>Month-Year</th><th># Resp</th><th>Lead</th><th>Job</th><th>Tool</th><th>L&D</th></tr></thead><tbody></tbody></table></div></div></section>' +
+'<section class="section" id="s-wf"><div class="card"><h2>Workflow scorecard</h2><div class="scroll"><table id="tWf"><thead><tr>' +
+'<th>Workflow</th><th>Year</th><th>Month</th><th>Month-Year</th><th># Resp</th><th>Lead</th><th>Job</th><th>Tool</th><th>L&D</th><th>Status</th></tr></thead><tbody></tbody></table></div></div></section>' +
+'<section class="section" id="s-period"><div class="card"><h2>Period scorecard</h2><div class="scroll"><table id="tPer"><thead><tr>' +
+'<th>Month-Year</th><th>Year</th><th>Month</th><th># Resp</th><th>Lead</th><th>Job</th><th>Tool</th><th>L&D</th></tr></thead><tbody></tbody></table></div></div></section>' +
+'</main>' +
+'<script>window.__DASH__ = ' + payload + ';</script>\n' +
+'<script>\n' +
+dashboardClientJs_() +
+'\n</script></body></html>';
+}
+
+/** Client-side JS for dashboard (as string for HtmlService). */
+function dashboardClientJs_() {
+  return [
+    'const D = window.__DASH__ || {tls:[],locations:[],workflows:[],periods:[],meta:{}};',
+    'const MONTHS={1:"January",2:"February",3:"March",4:"April",5:"May",6:"June",7:"July",8:"August",9:"September",10:"October",11:"November",12:"December"};',
+    'function num(v){if(v===null||v===undefined||v==="")return null;const n=Number(v);return isNaN(n)?null:n;}',
+    'function g(row,keys){for(const k of keys){if(row[k]!==undefined&&row[k]!==null&&row[k]!=="")return row[k];}return "";}',
+    'function normTl(r){return{name:String(g(r,["Lead","lead","name"])),year:num(g(r,["Year","year"])),month:num(g(r,["Month","month"])),monthYear:String(g(r,["Month-Year","Month Year","monthYear"])||""),n:num(g(r,["# Resp","Resp","n","#Resp"]))||0,lead:num(g(r,["Lead Score","LeadScore","lead"])),job:num(g(r,["Job Sat","JobSat","job"])),tool:num(g(r,["Tool Score","Tool","tool"])),ld:num(g(r,["L&D","LD","ld"])),centers:String(g(r,["Centers","Center","centers"])||""),flag:String(g(r,["Flag","flag","Status","status"])||"OK").toUpperCase()};}',
+    'function normLoc(r){return{center:String(g(r,["Center","center"])),year:num(g(r,["Year","year"])),month:num(g(r,["Month","month"])),monthYear:String(g(r,["Month-Year","Month Year"])||""),n:num(g(r,["# Resp","Resp","n"]))||0,lead:num(g(r,["Lead Score","lead"])),job:num(g(r,["Job Sat","job"])),tool:num(g(r,["Tool Score","tool"])),ld:num(g(r,["L&D","ld"]))};}',
+    'function normWf(r){return{workflow:String(g(r,["Workflow","workflow"])),year:num(g(r,["Year","year"])),month:num(g(r,["Month","month"])),monthYear:String(g(r,["Month-Year","Month Year"])||""),n:num(g(r,["# Resp","Resp","n"]))||0,lead:num(g(r,["Lead Score","lead"])),job:num(g(r,["Job Sat","job"])),tool:num(g(r,["Tool Score","tool"])),ld:num(g(r,["L&D","ld"])),status:String(g(r,["Status","status","Flag"])||"OK").toUpperCase()};}',
+    'function normPer(r){return{monthYear:String(g(r,["Month-Year","Month Year"])||""),year:num(g(r,["Year","year"])),month:num(g(r,["Month","month"])),n:num(g(r,["# Resp","Resp","n"]))||0,lead:num(g(r,["Lead Score","lead"])),job:num(g(r,["Job Sat","job"])),tool:num(g(r,["Tool Score","tool"])),ld:num(g(r,["L&D","ld"]))};}',
+    'const TLS=(D.tls||[]).map(normTl).filter(t=>t.name);',
+    'const LOCS=(D.locations||[]).map(normLoc).filter(t=>t.center);',
+    'const WFS=(D.workflows||[]).map(normWf).filter(t=>t.workflow);',
+    'const PERS=(D.periods||[]).map(normPer);',
+    'let charts={};',
+    'function sc(v){if(v==null)return"";if(v>=4.5)return"good";if(v>=3.8)return"warn";return"bad";}',
+    'function badge(f){const x=(f||"OK").toUpperCase();const c=x==="TOP"?"top":(x==="BOTTOM"||x==="RISK")?"bottom":x==="WATCH"||x==="LOW N"?"watch":"ok";return `<span class="badge ${c}">${x}</span>`;}',
+    'function periodMatch(row){const y=document.getElementById("fYear").value;const m=document.getElementById("fMonth").value;const my=document.getElementById("fMY").value;if(y!=="all"&&String(row.year)!==y)return false;if(m!=="all"&&String(row.month)!==m)return false;if(my!=="all"&&String(row.monthYear)!==my)return false;return true;}',
+    'function fTls(){const flag=document.getElementById("fFlag").value;const q=document.getElementById("fSearch").value.trim().toLowerCase();return TLS.filter(t=>{if(!periodMatch(t))return false;if(flag!=="all"&&t.flag!==flag)return false;if(q&&!t.name.toLowerCase().includes(q))return false;return true;}).sort((a,b)=>(b.lead||0)-(a.lead||0));}',
+    'function fLocs(){return LOCS.filter(periodMatch).sort((a,b)=>b.n-a.n);}',
+    'function fWfs(){const q=document.getElementById("fSearch").value.trim().toLowerCase();return WFS.filter(w=>{if(!periodMatch(w))return false;if(q&&!w.workflow.toLowerCase().includes(q))return false;return true;}).sort((a,b)=>b.n-a.n);}',
+    'function fPers(){return PERS.filter(periodMatch).sort((a,b)=>String(b.monthYear).localeCompare(String(a.monthYear)));}',
+    'function wavg(rows,key){let s=0,w=0;rows.forEach(r=>{if(r[key]!=null){s+=r[key]*r.n;w+=r.n;}});return w?s/w:null;}',
+    'function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}',
+    'function renderKpis(){const tls=fTls();const n=tls.reduce((s,t)=>s+t.n,0);const lead=wavg(tls,"lead");const job=wavg(tls,"job");const tool=wavg(tls,"tool");const ld=wavg(tls,"ld");const items=[{l:"Responses",v:n,s:"Filtered TL rows"},{l:"Leads",v:tls.length,s:"In view"},{l:"Lead score",v:lead!=null?lead.toFixed(2):"—",c:sc(lead)},{l:"Job sat",v:job!=null?job.toFixed(2):"—",c:sc(job)},{l:"Tool",v:tool!=null?tool.toFixed(2):"—",c:sc(tool)},{l:"L&D",v:ld!=null?ld.toFixed(2):"—",c:sc(ld)}];document.getElementById("kpis").innerHTML=items.map(i=>`<div class="kpi"><div class="l">${i.l}</div><div class="v ${i.c||""}">${i.v}</div><div class="s">${i.s||""}</div></div>`).join("");}',
+    'function renderTables(){const tls=fTls();document.querySelector("#tTl tbody").innerHTML=tls.map(t=>`<tr><td><strong>${t.name}</strong></td><td>${t.year||""}</td><td>${t.month||""}</td><td>${t.monthYear||""}</td><td>${t.n}</td><td class="${sc(t.lead)}">${t.lead!=null?t.lead.toFixed(2):""}</td><td class="${sc(t.job)}">${t.job!=null?t.job.toFixed(2):""}</td><td class="${sc(t.tool)}">${t.tool!=null?t.tool.toFixed(2):""}</td><td class="${sc(t.ld)}">${t.ld!=null?t.ld.toFixed(2):""}</td><td>${t.centers}</td><td>${badge(t.flag)}</td></tr>`).join("")||"<tr><td colspan=11>No rows</td></tr>";',
+    'const locs=fLocs();document.querySelector("#tLoc tbody").innerHTML=locs.map(l=>`<tr><td><strong>${l.center}</strong></td><td>${l.year||""}</td><td>${l.month||""}</td><td>${l.monthYear||""}</td><td>${l.n}</td><td class="${sc(l.lead)}">${l.lead!=null?l.lead.toFixed(2):""}</td><td class="${sc(l.job)}">${l.job!=null?l.job.toFixed(2):""}</td><td class="${sc(l.tool)}">${l.tool!=null?l.tool.toFixed(2):""}</td><td class="${sc(l.ld)}">${l.ld!=null?l.ld.toFixed(2):""}</td></tr>`).join("")||"<tr><td colspan=9>No rows</td></tr>";',
+    'const wfs=fWfs();document.querySelector("#tWf tbody").innerHTML=wfs.map(w=>`<tr><td><strong>${w.workflow}</strong></td><td>${w.year||""}</td><td>${w.month||""}</td><td>${w.monthYear||""}</td><td>${w.n}</td><td class="${sc(w.lead)}">${w.lead!=null?w.lead.toFixed(2):""}</td><td class="${sc(w.job)}">${w.job!=null?w.job.toFixed(2):""}</td><td class="${sc(w.tool)}">${w.tool!=null?w.tool.toFixed(2):""}</td><td class="${sc(w.ld)}">${w.ld!=null?w.ld.toFixed(2):""}</td><td>${badge(w.status)}</td></tr>`).join("")||"<tr><td colspan=10>No rows</td></tr>";',
+    'const pers=fPers();document.querySelector("#tPer tbody").innerHTML=pers.map(p=>`<tr><td><strong>${p.monthYear}</strong></td><td>${p.year||""}</td><td>${p.month||""}</td><td>${p.n}</td><td class="${sc(p.lead)}">${p.lead!=null?p.lead.toFixed(2):""}</td><td class="${sc(p.job)}">${p.job!=null?p.job.toFixed(2):""}</td><td class="${sc(p.tool)}">${p.tool!=null?p.tool.toFixed(2):""}</td><td class="${sc(p.ld)}">${p.ld!=null?p.ld.toFixed(2):""}</td></tr>`).join("")||"<tr><td colspan=8>No rows</td></tr>";}',
+    'function renderCharts(){const tls=fTls();const wrap=document.getElementById("tlChartWrap");if(wrap)wrap.style.height=Math.max(320,Math.min(900,26*tls.length+40))+"px";destroy("tl");',
+    'charts.tl=new Chart(document.getElementById("cTl"),{type:"bar",data:{labels:tls.map(t=>{const p=t.name.split(/\\s+/);return p.length<=2?t.name:p[0]+" "+p[p.length-1];}),datasets:[{data:tls.map(t=>t.lead),backgroundColor:tls.map(t=>t.flag==="BOTTOM"||t.flag==="RISK"?"rgba(239,68,68,.75)":t.flag==="TOP"?"rgba(34,197,94,.75)":"rgba(91,140,255,.75)"),borderRadius:4}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>tls[i[0].dataIndex].name,label:c=>{const t=tls[c.dataIndex];return "Lead "+(t.lead!=null?t.lead.toFixed(2):"—")+" · n="+t.n+" · "+t.flag;}}}},scales:{x:{min:0,max:5,ticks:{color:"#93a0b8"},grid:{color:"#243049"}},y:{ticks:{color:"#e8eefc",font:{size:10}},grid:{display:false}}}}});',
+    'const locs=fLocs().slice(0,12);destroy("loc");charts.loc=new Chart(document.getElementById("cLoc"),{type:"bar",data:{labels:locs.map(l=>l.center),datasets:[{label:"Lead",data:locs.map(l=>l.lead),backgroundColor:"#5b8cffaa"},{label:"Job",data:locs.map(l=>l.job),backgroundColor:"#22d3eeaa"},{label:"Tool",data:locs.map(l=>l.tool),backgroundColor:"#f59e0baa"},{label:"L&D",data:locs.map(l=>l.ld),backgroundColor:"#a78bfaaa"}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#e8eefc",boxWidth:10}}},scales:{y:{min:0,max:5,ticks:{color:"#93a0b8"},grid:{color:"#243049"}},x:{ticks:{color:"#e8eefc",maxRotation:40,font:{size:10}},grid:{display:false}}}}});',
+    'const wfs=fWfs().filter(w=>w.n>=3).slice(0,15);destroy("wf");charts.wf=new Chart(document.getElementById("cWf"),{type:"bar",data:{labels:wfs.map(w=>w.workflow.length>28?w.workflow.slice(0,26)+"…":w.workflow),datasets:[{label:"Lead score",data:wfs.map(w=>w.lead),backgroundColor:"#5b8cffaa",yAxisID:"y"},{label:"Responses",data:wfs.map(w=>w.n),type:"line",borderColor:"#22d3ee",backgroundColor:"#22d3ee33",yAxisID:"y1",tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#e8eefc",boxWidth:10}}},scales:{y:{min:0,max:5,position:"left",ticks:{color:"#93a0b8"},grid:{color:"#243049"}},y1:{position:"right",ticks:{color:"#93a0b8"},grid:{display:false}},x:{ticks:{color:"#e8eefc",maxRotation:45,font:{size:9}},grid:{display:false}}}}});}',
+    'function refresh(){const tls=fTls();const n=tls.reduce((s,t)=>s+t.n,0);const m=D.meta||{};document.getElementById("sub").textContent=(m.rebuilt?"Rebuilt · ":"Loaded · ")+(m.rebuildAt?new Date(m.rebuildAt).toLocaleString():"")+" · filtered resp≈"+n+" · leads "+tls.length+" · use Year/Month filters";renderKpis();renderTables();renderCharts();}',
+    'function initFilters(){const years=[...new Set(TLS.map(t=>t.year).filter(Boolean))].sort();const months=[...new Set(TLS.map(t=>t.month).filter(Boolean))].sort((a,b)=>a-b);const mys=[...new Set(TLS.map(t=>t.monthYear).filter(Boolean))].sort();const ySel=document.getElementById("fYear");years.forEach(y=>{const o=document.createElement("option");o.value=String(y);o.textContent=y;ySel.appendChild(o);});const mSel=document.getElementById("fMonth");months.forEach(m=>{const o=document.createElement("option");o.value=String(m);o.textContent=MONTHS[m]||m;mSel.appendChild(o);});const mySel=document.getElementById("fMY");mys.forEach(my=>{const o=document.createElement("option");o.value=my;o.textContent=my;mySel.appendChild(o);});if(mys.length){mySel.value=mys[mys.length-1];const last=TLS.find(t=>t.monthYear===mys[mys.length-1]);if(last){if(last.year)ySel.value=String(last.year);if(last.month)mSel.value=String(last.month);}}if(D.meta&&D.meta.sheetUrl)document.getElementById("sheetLink").href=D.meta.sheetUrl;}',
+    'document.getElementById("tabs").onclick=e=>{const t=e.target.closest(".tab");if(!t)return;document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".section").forEach(x=>x.classList.remove("active"));t.classList.add("active");document.getElementById("s-"+t.dataset.t).classList.add("active");setTimeout(renderCharts,40);};',
+    '["fYear","fMonth","fMY","fFlag"].forEach(id=>document.getElementById(id).onchange=refresh);',
+    'document.getElementById("fSearch").oninput=refresh;',
+    'document.getElementById("fYear").onchange=()=>{refresh();};',
+    'initFilters();refresh();'
+  ].join('\n');
 }
 
 /**
