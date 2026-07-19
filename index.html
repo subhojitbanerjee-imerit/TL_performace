@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>iMerit Survey Dashboard — TL · Location · Focus Areas</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121a2b;
+      --panel2: #182338;
+      --border: #243049;
+      --text: #e8eefc;
+      --muted: #93a0b8;
+      --accent: #5b8cff;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --cyan: #22d3ee;
+      --purple: #a78bfa;
+      --radius: 14px;
+      --shadow: 0 8px 28px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2744 0%, transparent 50%),
+                  radial-gradient(900px 500px at 100% 0%, #132033 0%, transparent 45%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: blur(12px);
+      background: rgba(11,18,32,.85);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 22px;
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+    }
+    .brand { display: flex; flex-direction: column; gap: 2px; }
+    .brand h1 { margin: 0; font-size: 1.15rem; letter-spacing: .2px; }
+    .brand span { color: var(--muted); font-size: .82rem; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    select, input[type="search"], button {
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: .88rem;
+    }
+    button { cursor: pointer; }
+    button.primary { background: linear-gradient(135deg, #3b82f6, #6366f1); border: none; font-weight: 600; }
+    button:hover { filter: brightness(1.08); }
+    main { padding: 18px 22px 40px; max-width: 1480px; margin: 0 auto; }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tab {
+      padding: 9px 14px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--panel); color: var(--muted); cursor: pointer; font-weight: 600; font-size: .86rem;
+    }
+    .tab.active { color: #fff; background: linear-gradient(135deg, #2563eb, #4f46e5); border-color: transparent; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px; margin-bottom: 16px;
+    }
+    @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 700px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi {
+      background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 14px 12px;
+      box-shadow: var(--shadow);
+    }
+    .kpi .label { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+    .kpi .value { font-size: 1.55rem; font-weight: 800; margin-top: 6px; }
+    .kpi .sub { color: var(--muted); font-size: .78rem; margin-top: 4px; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .grid-2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    @media (max-width: 1000px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+    }
+    .card h2 { margin: 0 0 4px; font-size: 1rem; }
+    .card .hint { color: var(--muted); font-size: .8rem; margin-bottom: 12px; }
+    .chart-wrap { position: relative; height: 320px; }
+    .chart-wrap.sm { height: 260px; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: .86rem;
+    }
+    th, td {
+      text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+      position: sticky; top: 0; background: var(--panel); cursor: pointer; user-select: none;
+    }
+    th:hover { color: var(--text); }
+    tr:hover td { background: rgba(91,140,255,.06); }
+    .badge {
+      display: inline-block; padding: 3px 8px; border-radius: 999px;
+      font-size: .72rem; font-weight: 700; letter-spacing: .02em;
+    }
+    .badge.top { background: rgba(34,197,94,.15); color: var(--good); }
+    .badge.ok { background: rgba(91,140,255,.15); color: #93c5fd; }
+    .badge.bottom { background: rgba(239,68,68,.15); color: #fca5a5; }
+    .badge.high { background: rgba(239,68,68,.2); color: #fecaca; }
+    .badge.med { background: rgba(245,158,11,.18); color: #fcd34d; }
+    .score-bar {
+      height: 7px; background: #1f2a40; border-radius: 99px; overflow: hidden; min-width: 70px;
+    }
+    .score-bar > i {
+      display: block; height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg, #ef4444, #f59e0b, #22c55e);
+    }
+    .list-item {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+      background: var(--panel2);
+    }
+    .list-item h3 { margin: 0 0 6px; font-size: .95rem; }
+    .list-item p { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.45; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .pill {
+      font-size: .72rem; padding: 3px 8px; border-radius: 999px;
+      background: #1e293b; color: #cbd5e1; border: 1px solid var(--border);
+    }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+    .alert {
+      border-left: 4px solid var(--bad);
+      background: rgba(239,68,68,.08);
+      padding: 12px 14px; border-radius: 0 10px 10px 0; margin-bottom: 10px;
+    }
+    .alert.ok { border-left-color: var(--good); background: rgba(34,197,94,.08); }
+    .alert.warn { border-left-color: var(--warn); background: rgba(245,158,11,.08); }
+    .alert strong { display: block; margin-bottom: 4px; }
+    .alert span { color: var(--muted); font-size: .85rem; line-height: 1.4; }
+    footer {
+      color: var(--muted); font-size: .75rem; text-align: center; padding: 8px 16px 24px;
+    }
+    .table-scroll { max-height: 520px; overflow: auto; border: 1px solid var(--border); border-radius: 12px; }
+    .focus-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    @media (max-width: 900px) { .focus-grid { grid-template-columns: 1fr; } }
+    .dim-row { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0; font-size: .84rem; }
+    .dim-row .lbl { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>iMerit Employee Feedback Dashboard</h1>
+      <span>Source: responses_consolidated · June 2026 · 274 responses · TL · Location · Focus Areas</span>
+    </div>
+    <div class="controls">
+      <select id="filterCenter" title="Filter by center">
+        <option value="all">All centers</option>
+      </select>
+      <select id="filterFlag" title="Filter by performance">
+        <option value="all">All TLs</option>
+        <option value="TOP">TOP only</option>
+        <option value="OK">OK only</option>
+        <option value="BOTTOM">Needs attention</option>
+      </select>
+      <input type="search" id="searchTl" placeholder="Search TL name…" />
+      <button class="primary" onclick="window.print()">Print / PDF</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="overview">Overview</div>
+      <div class="tab" data-tab="tl">TL-wise Performance</div>
+      <div class="tab" data-tab="focus">Focus Areas for TLs</div>
+      <div class="tab" data-tab="location">Location Issues</div>
+      <div class="tab" data-tab="themes">Themes & Verbatims</div>
+      <div class="tab" data-tab="actions">Action Plan</div>
+    </div>
+
+    <!-- OVERVIEW -->
+    <section class="section active" id="tab-overview">
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Lead score distribution by TL</h2>
+          <p class="hint">Average of 9 lead evaluation items (1–5). Bar color by performance flag.</p>
+          <div class="chart-wrap"><canvas id="chartTlBars"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Location health radar</h2>
+          <p class="hint">Lead · Job · Tool · L&D averages by center</p>
+          <div class="chart-wrap"><canvas id="chartLocRadar"></canvas></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Top open-text themes</h2>
+          <p class="hint">Keyword mentions across free-text fields</p>
+          <div class="chart-wrap sm"><canvas id="chartThemes"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Where to focus first</h2>
+          <div id="overviewAlerts"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TL -->
+    <section class="section" id="tab-tl">
+      <div class="card">
+        <h2>Team Lead performance scorecard</h2>
+        <p class="hint">Click column headers to sort. Green ≥4.5 · Yellow 3.8–4.49 · Red &lt;3.8 / BOTTOM flag. Low sample (&lt;3) interpret with caution.</p>
+        <div class="table-scroll">
+          <table id="tlTable">
+            <thead>
+              <tr>
+                <th data-k="rank">#</th>
+                <th data-k="name">Lead Name</th>
+                <th data-k="n"># Resp</th>
+                <th data-k="lead">Lead Score</th>
+                <th data-k="job">Job Sat</th>
+                <th data-k="tool">Tool</th>
+                <th data-k="ld">L&D</th>
+                <th data-k="centers">Center(s)</th>
+                <th data-k="wfh">WFH %</th>
+                <th data-k="flag">Flag</th>
+                <th data-k="notes">Notes / Action</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Lead score vs response volume</h2>
+          <p class="hint">Bubble size = responses. Bottom-left = low score + volume risk.</p>
+          <div class="chart-wrap"><canvas id="chartScatter"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Top vs bottom TLs (Lead score)</h2>
+          <div class="chart-wrap"><canvas id="chartTopBottom"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOCUS -->
+    <section class="section" id="tab-focus">
+      <div class="card">
+        <h2>TL coaching focus map</h2>
+        <p class="hint">What each underperforming or at-risk lead should improve, based on scores + open text.</p>
+        <div class="focus-grid" id="focusCards"></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <h2>Universal TL development themes</h2>
+          <p class="hint">Even mid/high scorers — recurring improvement asks from teams</p>
+          <div id="universalFocus"></div>
+        </div>
+        <div class="card">
+          <h2>Lead evaluation dimensions (org-wide)</h2>
+          <p class="hint">All ~4.4–4.5 band — equal treatment & accessibility drive low-score outliers</p>
+          <div class="chart-wrap sm"><canvas id="chartDims"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOCATION -->
+    <section class="section" id="tab-location">
+      <div class="card">
+        <h2>Center / location performance</h2>
+        <p class="hint">Self-reported center. SLT needs priority review; Pune has WFH policy heat; Hyderabad volume + tool/shift themes.</p>
+        <div class="table-scroll" style="max-height:none">
+          <table id="locTable">
+            <thead>
+              <tr>
+                <th>Center</th><th># Resp</th><th>Lead</th><th>Job Sat</th><th>Tool</th><th>L&D</th><th>WFH %</th><th>WFO %</th><th>Top concern</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Scores by location</h2>
+          <div class="chart-wrap"><canvas id="chartLocBars"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Location risk cards</h2>
+          <div id="locRisks"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- THEMES -->
+    <section class="section" id="tab-themes">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Quantified feedback themes</h2>
+          <div class="table-scroll" style="max-height:420px">
+            <table id="themeTable">
+              <thead><tr><th>Theme</th><th>Mentions</th><th>Action</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Theme volume</h2>
+          <div class="chart-wrap"><canvas id="chartThemesBig"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Notable verbatims (action required)</h2>
+        <div id="verbatims"></div>
+      </div>
+    </section>
+
+    <!-- ACTIONS -->
+    <section class="section" id="tab-actions">
+      <div class="grid-3">
+        <div class="card">
+          <h2>Immediate (1–2 weeks)</h2>
+          <div id="actImm"></div>
+        </div>
+        <div class="card">
+          <h2>Short-term (2–4 weeks)</h2>
+          <div id="actShort"></div>
+        </div>
+        <div class="card">
+          <h2>Medium-term (1–3 months)</h2>
+          <div id="actMed"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>How this maps to your Google Sheet</h2>
+        <p class="hint">Sheet: responses_consolidated · Live dashboard can re-sync when sheet is shared publicly or with a service account.</p>
+        <ul style="color:var(--muted); font-size:.9rem; line-height:1.55">
+          <li><strong style="color:var(--text)">Lead Score</strong> = average of 9 lead Likert columns</li>
+          <li><strong style="color:var(--text)">Tool Score</strong> = average of 5 labeling-tool columns</li>
+          <li><strong style="color:var(--text)">TOP</strong> = Lead ≥ 4.5 and ≥ 5 responses · <strong style="color:var(--text)">BOTTOM</strong> = Lead &lt; 3.5 or (Lead &lt; 4.0 and ≥ 3 responses)</li>
+          <li>Open <code>C:\Users\Subho\Downloads\iMerit_Survey_Analysis_Report_TL_Location.xlsx</code> for printable Excel tables</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Dashboard generated from consolidated June 2026 survey analysis · Scores on 1–5 scale · Duplicates possible (no employee ID) · Not a substitute for HR case handling on serious complaints
+  </footer>
+
+  <script>
+    // ========== DATA ==========
+    const KPI = {
+      responses: 274,
+      jobSat: 4.23,
+      lead: 4.39,
+      tool: 3.82,
+      ld: 4.14,
+      wfhPct: 28.5
+    };
+
+    const TLS = [
+      { rank:1, name:'Teegula Kavya Shree', n:10, lead:5, job:4.8, tool:4.3, ld:4.9, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'' },
+      { rank:2, name:'Rawoof', n:7, lead:5, job:5, tool:5, ld:5, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'' },
+      { rank:3, name:'Bhupendar.k', n:6, lead:5, job:4.67, tool:4.87, ld:4.83, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'' },
+      { rank:4, name:'Murtuza Taher', n:2, lead:5, job:5, tool:4, ld:3, centers:'SLT', wfh:50, flag:'OK', notes:'Low sample: validate with more feedback or 1:1.' },
+      { rank:5, name:'Anumita Das', n:1, lead:5, job:5, tool:4.2, ld:5, centers:'Pune', wfh:0, flag:'OK', notes:'Low sample.' },
+      { rank:6, name:'Arkajit', n:1, lead:5, job:4, tool:4, ld:5, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.' },
+      { rank:7, name:'Shireen Khatoon', n:1, lead:5, job:4, tool:4, ld:4, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.' },
+      { rank:8, name:'Subham Mukhrjee', n:1, lead:5, job:5, tool:4.6, ld:5, centers:'MBZ', wfh:0, flag:'OK', notes:'Low sample.' },
+      { rank:9, name:'Indrajit Lalaso Patil', n:23, lead:4.91, job:4.78, tool:4.3, ld:4.7, centers:'Pune', wfh:26.1, flag:'TOP', notes:'' },
+      { rank:10, name:'Abhishek Rajan Muniswami', n:12, lead:4.91, job:4.5, tool:3.95, ld:4.83, centers:'Pune', wfh:0, flag:'TOP', notes:'' },
+      { rank:11, name:'Debarati Bera', n:9, lead:4.75, job:4.22, tool:3.89, ld:4.11, centers:'Pune, SLT', wfh:44.4, flag:'TOP', notes:'' },
+      { rank:12, name:'Sneha Achyutananda Parida', n:4, lead:4.72, job:4, tool:4.2, ld:4.5, centers:'Hyderabad, Pune', wfh:0, flag:'OK', notes:'' },
+      { rank:13, name:'Sarojini Mathan', n:3, lead:4.67, job:4.33, tool:4, ld:4.33, centers:'BBS, BRP', wfh:100, flag:'OK', notes:'' },
+      { rank:14, name:'Abdul Rasheed Shaik', n:12, lead:4.57, job:4.25, tool:3.95, ld:4.33, centers:'Hyderabad', wfh:16.7, flag:'TOP', notes:'' },
+      { rank:15, name:'Edupalli Asritha Nayani', n:7, lead:4.57, job:4.57, tool:3.57, ld:4, centers:'CBTR', wfh:0, flag:'TOP', notes:'' },
+      { rank:16, name:'Samsher Alam', n:3, lead:4.52, job:3.67, tool:2.67, ld:3, centers:'SLT', wfh:0, flag:'OK', notes:'Low tool score — escalate tool issues.' },
+      { rank:17, name:'Sadiqa Khurshid', n:9, lead:4.46, job:3.78, tool:3.91, ld:4.11, centers:'BRP, MBZ, SLT', wfh:100, flag:'OK', notes:'' },
+      { rank:18, name:'Sritama Sarkar', n:4, lead:4.45, job:4, tool:3.9, ld:4, centers:'Hyderabad, Pune', wfh:0, flag:'OK', notes:'' },
+      { rank:19, name:'Shweta Dash', n:21, lead:4.42, job:4.43, tool:3.86, ld:4.29, centers:'Pune', wfh:28.6, flag:'OK', notes:'High volume; strong psych safety praise; push team visibility upward.' },
+      { rank:20, name:'Swati Kishor Saledar', n:12, lead:4.38, job:4.33, tool:4.07, ld:4.33, centers:'Pune', wfh:25, flag:'OK', notes:'' },
+      { rank:21, name:'Aditee Naskar', n:11, lead:4.35, job:3.91, tool:3, ld:3.73, centers:'BRP, Pune', wfh:27.3, flag:'OK', notes:'WFH policy escalations from team; tool score low.' },
+      { rank:22, name:'Amit Kumar', n:5, lead:4.31, job:4.4, tool:3.76, ld:4, centers:'MBZ, SLT', wfh:100, flag:'OK', notes:'' },
+      { rank:23, name:'Mayur Dnyaneshwar Nirgule', n:5, lead:4.24, job:4.4, tool:2.96, ld:3.8, centers:'Hyderabad, Pune', wfh:40, flag:'OK', notes:'Some feedback on lack of feedback/comms; tool lag.' },
+      { rank:24, name:'Karpe Gayatri', n:43, lead:4.2, job:4.07, tool:3.51, ld:3.7, centers:'Hyderabad', wfh:2.3, flag:'OK', notes:'Highest volume. Mixed: crashes, 9hr shift asks, leave mgmt, equal treatment themes.' },
+      { rank:25, name:'Chirantan Baidya', n:4, lead:4.17, job:4, tool:3.15, ld:4, centers:'BRP', wfh:100, flag:'OK', notes:'' },
+      { rank:26, name:'Sudip Sen', n:2, lead:4.17, job:4, tool:4, ld:4, centers:'CBTR', wfh:0, flag:'OK', notes:'Low sample.' },
+      { rank:27, name:'Shahbaz Rashid', n:1, lead:4.11, job:4, tool:2.6, ld:3, centers:'MBZ', wfh:0, flag:'OK', notes:'Low sample; tool lagging.' },
+      { rank:28, name:'Akshay Prashant Umredkar', n:20, lead:4.06, job:4.1, tool:4.23, ld:4.35, centers:'Pune', wfh:40, flag:'OK', notes:'High volume; some low outliers (respect/support). Mixed self-ratings.' },
+      { rank:29, name:'Debipriya Banerjee', n:8, lead:4, job:3.88, tool:3.65, ld:4.12, centers:'Pune, SLT', wfh:50, flag:'OK', notes:'Serious complaint on one GEN-AI lead interaction (wifi/WFH trust) — case review.' },
+      { rank:30, name:'Rahuljeet Banerjee', n:1, lead:4, job:4, tool:4, ld:4, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.' },
+      { rank:31, name:'Samyak Rahul Ramteke', n:1, lead:4, job:4, tool:3, ld:3, centers:'BRP', wfh:100, flag:'OK', notes:'Low sample.' },
+      { rank:32, name:'Amitabha Mondal', n:4, lead:3.81, job:4, tool:3.95, ld:3.75, centers:'BRP, MBZ', wfh:100, flag:'BOTTOM', notes:'Ops follow-up: timesheets/response tracking; coaching on consistency.' },
+      { rank:33, name:'Jenif Ahmed Molla', n:3, lead:3.67, job:3.67, tool:3.6, ld:3.67, centers:'BRP, Hyderabad', wfh:33.3, flag:'BOTTOM', notes:'Flat mid-low scores — pulse check team mood.' },
+      { rank:34, name:'Pradipta Das', n:5, lead:3.42, job:3.2, tool:3.6, ld:3.4, centers:'BBS, BRP, MBZ, SLT', wfh:100, flag:'BOTTOM', notes:'Accessibility, equal treatment, feeling valued. HIGH priority coaching.' },
+      { rank:35, name:'Anupam Das', n:9, lead:3.4, job:3.78, tool:3.09, ld:3.22, centers:'Hyderabad, SLT', wfh:44.4, flag:'BOTTOM', notes:'Inconsistent scores incl. 1s. Tool crashes + leadership variance. Review.' },
+      { rank:36, name:'Sanglap Kundu', n:3, lead:3.33, job:3.33, tool:2.6, ld:3.33, centers:'SLT', wfh:66.7, flag:'BOTTOM', notes:'Office-obsessed / stress culture feedback. Leadership style review.' },
+      { rank:37, name:'Rupsha Chakraborty', n:1, lead:1, job:1, tool:2, ld:2, centers:'SLT', wfh:0, flag:'BOTTOM', notes:'CRITICAL: escalations without verbal notice; non-cooperation. Immediate HR/Ops case.' }
+    ];
+
+    const LOCATIONS = [
+      { center:'BBS', n:3, lead:4.67, job:4.33, tool:3.53, ld:4.67, wfh:100, wfo:0, concern:'Positive on leads/trainers. Tool loading noted.' },
+      { center:'BRP', n:20, lead:4.06, job:3.65, tool:3.68, ld:3.8, wfh:95, wfo:5, concern:'Mostly WFH. Job sat lower. Camera/view tool asks.' },
+      { center:'CBTR', n:9, lead:4.48, job:4.44, tool:3.67, ld:4, wfh:0, wfo:100, concern:'Tool lag/speed; desire to learn more workflows.' },
+      { center:'Hyderabad', n:90, lead:4.42, job:4.31, tool:3.89, ld:4.13, wfh:3.3, wfo:96.7, concern:'High volume (Karpe). Crashes/lag, 9hr shift, leave fairness.' },
+      { center:'MBZ', n:6, lead:4.11, job:4.33, tool:3.47, ld:3.83, wfh:66.7, wfo:33.3, concern:'Smaller n; tool lag mentions.' },
+      { center:'Pune', n:117, lead:4.52, job:4.34, tool:3.95, ld:4.37, wfh:27.4, wfo:71.8, concern:'Largest n. Strong leads overall but WFH policy partiality is hot issue.' },
+      { center:'SLT', n:29, lead:3.98, job:3.79, tool:3.34, ld:3.48, wfh:58.6, wfo:41.4, concern:'Priority location — outliers (Rupsha, Pradipta, Sanglap). Lowest tool/L&D.' }
+    ];
+
+    const THEMES = [
+      { theme:'Feedback frequency & recognition', mentions:54, action:'Bi-weekly 1:1s, public shoutouts, quality feedback loops.' },
+      { theme:'Tool lag / loading delays', mentions:46, action:'P0 engineering: next-task load, submit delay, CDN/cache.' },
+      { theme:'Tool UI / camera / view', mentions:42, action:'Zoom, larger 2D, shortcuts, blinker in View Mode, occupancy UX.' },
+      { theme:'Positive lead support', mentions:91, action:'Benchmark top TLs; peer mentoring for others.' },
+      { theme:'L&D edge cases & refreshers', mentions:38, action:'Knowledge base, edge-case library, monthly refreshers.' },
+      { theme:'Lead accessibility & query resolution', mentions:36, action:'Shift coverage SLA, shared FAQ, daily doubt closure.' },
+      { theme:'Positive L&D / trainer', mentions:39, action:'Scale best trainers; buddy sessions for new joiners.' },
+      { theme:'Tool crashes / hangs', mentions:27, action:'Auto-save, recovery, occupancy crash root-cause.' },
+      { theme:'Equal treatment / feeling valued', mentions:25, action:'Inclusive leadership coaching + anonymous pulse.' },
+      { theme:'WFH policy inconsistency', mentions:15, action:'Written uniform policy; audit STQC Sim Behaviour allocations.' },
+      { theme:'Shift / WLB (9hr, OT)', mentions:12, action:'Review 9hr & hybrid OT feasibility.' },
+      { theme:'Salary / inflation', mentions:7, action:'Transparent cycle + center parity review.' }
+    ];
+
+    const VERBATIMS = [
+      { who:'Rupsha Chakraborty (SLT, all 1s)', text:'Escalations without verbal communication / prior notice or warning, repeatedly; not cooperating with team members.' },
+      { who:'Pradipta Das (SLT, low scores)', text:'Lead should be accessible during shift; treat individuals equally; make people feel a valued part of the team.' },
+      { who:'Multiple Pune (Aditee Naskar et al.)', text:'WFH promised after 2 months not granted; 7 on WFH vs rest WFO on STQC Sim Behaviour — perceived partiality; want uniform policy.' },
+      { who:'Debipriya Banerjee (GEN-AI / SLT)', text:'Connectivity issue not trusted; asked to report to office despite 2+ hour commute; described as toxic / illogical.' },
+      { who:'Sanglap Kundu (GEN-AI / SLT)', text:'Office-obsessed culture; stress framed as incapability — severe engagement risk.' },
+      { who:'Tool (many teams)', text:'25–30s next-task load; crashes; black screen until refresh; dashboard time drops after submit; blinker missing in QC View Mode.' }
+    ];
+
+    const FOCUS_CARDS = [
+      {
+        name:'Rupsha Chakraborty', flag:'BOTTOM', priority:'CRITICAL',
+        focus:['Stop silent escalations — verbal + written prior notice','Cooperation & respect with team','Immediate mediation / HR case','Rebuild trust via transparent process'],
+        centers:'SLT'
+      },
+      {
+        name:'Sanglap Kundu', flag:'BOTTOM', priority:'HIGH',
+        focus:['Leadership tone under pressure','Psychological safety vs office presence pressure','Stress management coaching','Clarify hybrid/WFH expectations fairly'],
+        centers:'SLT'
+      },
+      {
+        name:'Anupam Das', flag:'BOTTOM', priority:'HIGH',
+        focus:['Consistency of ratings (some 1s)','Accessibility during shift','Tool advocacy for crashes/blinker View Mode','Equal treatment perception'],
+        centers:'Hyderabad, SLT'
+      },
+      {
+        name:'Pradipta Das', flag:'BOTTOM', priority:'HIGH',
+        focus:['Be active on project issues','Domain knowledge depth','Accessibility during shift','Equal treatment & valued feeling'],
+        centers:'BBS, BRP, MBZ, SLT'
+      },
+      {
+        name:'Jenif Ahmed Molla', flag:'BOTTOM', priority:'MEDIUM',
+        focus:['Raise engagement (flat ~3.7)','Visibility & support cadence','Collect specific team blockers'],
+        centers:'BRP, Hyderabad'
+      },
+      {
+        name:'Amitabha Mondal', flag:'BOTTOM', priority:'MEDIUM',
+        focus:['Timely ops follow-up (timesheets, response tracking)','Proactive check-ins','Month-end process discipline'],
+        centers:'BRP, MBZ'
+      },
+      {
+        name:'Karpe Gayatri (high volume)', flag:'OK', priority:'WATCH',
+        focus:['Leave management fairness','Equal treatment messages','Tool stability advocacy for Hyderabad','9hr shift / WLB conversation'],
+        centers:'Hyderabad (n=43)'
+      },
+      {
+        name:'Akshay Prashant Umredkar', flag:'OK', priority:'WATCH',
+        focus:['Respectful communication consistency','Both-sides listening','Reduce low-score outliers','Keep tool lag escalation alive'],
+        centers:'Pune (n=20)'
+      }
+    ];
+
+    const UNIVERSAL = [
+      { t:'More frequent actionable feedback', d:'Top ask even for strong TLs — daily/bi-weekly quality notes.' },
+      { t:'Career & growth conversations', d:'Skill paths, promotion visibility, not only task metrics.' },
+      { t:'Delegation & ownership', d:'Empower team; reduce TL bottleneck.' },
+      { t:'Strategic visibility', d:'Explain why priorities change; roadmap context.' },
+      { t:'Recognition', d:'Celebrate wins to upper management (visibility theme).' },
+      { t:'Faster doubt resolution', d:'Task-link queries stuck — SLA with L&D/SME.' }
+    ];
+
+    const ACTIONS = {
+      imm: [
+        'Case review: Rupsha Chakraborty (silent escalations) — HR + Ops.',
+        'Case review: GEN-AI SLT trust/culture complaints (Debipriya, Sanglap).',
+        'Coaching plans: Pradipta Das, Anupam Das, Jenif, Amitabha.',
+        'WFH policy written update for STQC Sim Behaviour (Pune) + allocation audit.',
+        'Tool P0: lag, crashes, dashboard time/count, blinker View Mode.'
+      ],
+      short: [
+        'UI quick wins: shortcuts, larger camera, hard-break visibility, occupancy auto-toggle.',
+        'TL workshop: inclusive leadership, feedback cadence, leave fairness.',
+        'L&D: edge-case library, refreshers, Hyderabad capacity if needed.',
+        'SME/buddy coverage during shift for annotation doubts.'
+      ],
+      med: [
+        'Monthly automated TL scorecard from Google Sheet.',
+        'Recognition / leaderboard pilots.',
+        'Comp transparency: inflation & center parity narrative.',
+        'You said / we did all-hands within 30 days; re-pulse in 90 days.'
+      ]
+    };
+
+    // ========== STATE ==========
+    let sortKey = 'lead';
+    let sortDir = -1;
+    let charts = {};
+
+    // ========== HELPERS ==========
+    function scoreColor(v) {
+      if (v >= 4.5) return 'good';
+      if (v >= 3.8) return 'warn';
+      return 'bad';
+    }
+    function flagBadge(f) {
+      const c = f === 'TOP' ? 'top' : f === 'BOTTOM' ? 'bottom' : 'ok';
+      return `<span class="badge ${c}">${f}</span>`;
+    }
+    function bar(v) {
+      const pct = Math.max(0, Math.min(100, (v / 5) * 100));
+      return `<div class="score-bar" title="${v}"><i style="width:${pct}%"></i></div>`;
+    }
+    function filteredTls() {
+      const center = document.getElementById('filterCenter').value;
+      const flag = document.getElementById('filterFlag').value;
+      const q = document.getElementById('searchTl').value.trim().toLowerCase();
+      return TLS.filter(t => {
+        if (flag !== 'all' && t.flag !== flag) return false;
+        if (center !== 'all' && !t.centers.split(',').map(s => s.trim()).includes(center) && t.centers !== center) {
+          // allow multi-center match
+          if (!t.centers.includes(center)) return false;
+        }
+        if (q && !t.name.toLowerCase().includes(q)) return false;
+        return true;
+      }).sort((a, b) => {
+        const av = a[sortKey], bv = b[sortKey];
+        if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+        return sortDir * ((av ?? 0) - (bv ?? 0));
+      });
+    }
+
+    // ========== RENDER ==========
+    function renderKpis() {
+      const items = [
+        { label:'Responses', value: KPI.responses, sub:'June 2026 consolidated', cls:'' },
+        { label:'Job satisfaction', value: KPI.jobSat.toFixed(2), sub:'Target 4.0+', cls: scoreColor(KPI.jobSat) },
+        { label:'Lead performance', value: KPI.lead.toFixed(2), sub:'Avg of 9 items', cls: scoreColor(KPI.lead) },
+        { label:'Labeling tool', value: KPI.tool.toFixed(2), sub:'Needs improvement', cls: scoreColor(KPI.tool) },
+        { label:'L&D / Trainer', value: KPI.ld.toFixed(2), sub:'Target 4.0+', cls: scoreColor(KPI.ld) },
+        { label:'WFH share', value: KPI.wfhPct + '%', sub:'Of responses', cls:'' }
+      ];
+      document.getElementById('kpiGrid').innerHTML = items.map(i => `
+        <div class="kpi">
+          <div class="label">${i.label}</div>
+          <div class="value ${i.cls}">${i.value}</div>
+          <div class="sub">${i.sub}</div>
+        </div>`).join('');
+    }
+
+    function renderOverviewAlerts() {
+      document.getElementById('overviewAlerts').innerHTML = `
+        <div class="alert"><strong>1. SLT location risk</strong><span>Lowest lead/job/tool/L&D cluster. Hosts critical TL cases (Rupsha, Pradipta, Sanglap).</span></div>
+        <div class="alert warn"><strong>2. Tool performance (org-wide)</strong><span>Avg 3.82 — lag (46), UI/camera (42), crashes (27). Biggest productivity drag.</span></div>
+        <div class="alert warn"><strong>3. Pune WFH fairness</strong><span>Repeated partiality complaints on STQC Sim Behaviour — policy + audit needed.</span></div>
+        <div class="alert ok"><strong>4. Strength to scale</strong><span>Lead avg 4.39; top TLs (Teegula, Rawoof, Bhupendar, Indrajit, Abhishek) are role models.</span></div>
+      `;
+    }
+
+    function renderTlTable() {
+      const rows = filteredTls();
+      document.querySelector('#tlTable tbody').innerHTML = rows.map(t => `
+        <tr>
+          <td>${t.rank}</td>
+          <td><strong>${t.name}</strong></td>
+          <td>${t.n}</td>
+          <td><span class="${scoreColor(t.lead)}">${t.lead.toFixed(2)}</span> ${bar(t.lead)}</td>
+          <td class="${scoreColor(t.job)}">${t.job.toFixed(2)}</td>
+          <td class="${scoreColor(t.tool)}">${t.tool.toFixed(2)}</td>
+          <td class="${scoreColor(t.ld)}">${t.ld.toFixed(2)}</td>
+          <td>${t.centers}</td>
+          <td>${t.wfh}%</td>
+          <td>${flagBadge(t.flag)}</td>
+          <td style="color:var(--muted);max-width:280px">${t.notes || '—'}</td>
+        </tr>`).join('');
+    }
+
+    function renderLocTable() {
+      document.querySelector('#locTable tbody').innerHTML = LOCATIONS.map(l => `
+        <tr>
+          <td><strong>${l.center}</strong></td>
+          <td>${l.n}</td>
+          <td class="${scoreColor(l.lead)}">${l.lead.toFixed(2)}</td>
+          <td class="${scoreColor(l.job)}">${l.job.toFixed(2)}</td>
+          <td class="${scoreColor(l.tool)}">${l.tool.toFixed(2)}</td>
+          <td class="${scoreColor(l.ld)}">${l.ld.toFixed(2)}</td>
+          <td>${l.wfh}%</td>
+          <td>${l.wfo}%</td>
+          <td style="color:var(--muted)">${l.concern}</td>
+        </tr>`).join('');
+    }
+
+    function renderFocus() {
+      document.getElementById('focusCards').innerHTML = FOCUS_CARDS.map(f => `
+        <div class="list-item">
+          <h3>${f.name} ${flagBadge(f.flag)}
+            <span class="badge ${f.priority==='CRITICAL'||f.priority==='HIGH'?'high':'med'}">${f.priority}</span>
+          </h3>
+          <p>Centers: ${f.centers}</p>
+          <div class="pill-row">${f.focus.map(x => `<span class="pill">${x}</span>`).join('')}</div>
+        </div>`).join('');
+
+      document.getElementById('universalFocus').innerHTML = UNIVERSAL.map(u => `
+        <div class="list-item"><h3>${u.t}</h3><p>${u.d}</p></div>`).join('');
+    }
+
+    function renderThemes() {
+      const sorted = [...THEMES].sort((a,b) => b.mentions - a.mentions);
+      document.querySelector('#themeTable tbody').innerHTML = sorted.map(t => `
+        <tr><td>${t.theme}</td><td><strong>${t.mentions}</strong></td><td style="color:var(--muted)">${t.action}</td></tr>`).join('');
+      document.getElementById('verbatims').innerHTML = VERBATIMS.map(v => `
+        <div class="alert"><strong>${v.who}</strong><span>${v.text}</span></div>`).join('');
+    }
+
+    function renderLocRisks() {
+      document.getElementById('locRisks').innerHTML = `
+        <div class="alert"><strong>SLT — highest risk</strong><span>Lead 3.98 · Job 3.79 · Tool 3.34 · L&D 3.48. Contains CRITICAL individual cases. Ops deep-dive this week.</span></div>
+        <div class="alert warn"><strong>Pune — volume + policy</strong><span>117 responses, strong lead avg (4.52) but WFH inconsistency is a culture risk. OT 12hr hybrid requests.</span></div>
+        <div class="alert warn"><strong>Hyderabad — volume + ops</strong><span>90 responses. Tool crashes, 9-hour shift asks, leave fairness under high-volume TLs.</span></div>
+        <div class="alert warn"><strong>BRP — job sat soft</strong><span>Job sat 3.65 (lowest center). Investigate drivers vs WFH-heavy mix.</span></div>
+        <div class="alert ok"><strong>BBS / CBTR / Hyderabad tops</strong><span>Several TOP TLs — use as coaching benchmarks for SLT/BRP.</span></div>
+      `;
+    }
+
+    function renderActions() {
+      const mk = (arr) => arr.map(a => `<div class="list-item"><p>${a}</p></div>`).join('');
+      document.getElementById('actImm').innerHTML = mk(ACTIONS.imm);
+      document.getElementById('actShort').innerHTML = mk(ACTIONS.short);
+      document.getElementById('actMed').innerHTML = mk(ACTIONS.med);
+    }
+
+    function destroyChart(id) {
+      if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+    }
+
+    function buildCharts() {
+      const tls = filteredTls().filter(t => t.n >= 2 || t.flag === 'BOTTOM');
+      // TL bars
+      destroyChart('tlBars');
+      charts.tlBars = new Chart(document.getElementById('chartTlBars'), {
+        type: 'bar',
+        data: {
+          labels: tls.map(t => t.name.split(' ')[0] + (t.name.includes(' ') ? '…' : '')),
+          datasets: [{
+            label: 'Lead score',
+            data: tls.map(t => t.lead),
+            backgroundColor: tls.map(t => t.flag === 'BOTTOM' ? '#ef4444aa' : t.flag === 'TOP' ? '#22c55eaa' : '#5b8cffaa'),
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: {
+            callbacks: { title: (items) => tls[items[0].dataIndex].name }
+          }},
+          scales: {
+            y: { min: 0, max: 5, ticks: { color: '#93a0b8' }, grid: { color: '#243049' } },
+            x: { ticks: { color: '#93a0b8', maxRotation: 60, minRotation: 40, font: { size: 9 } }, grid: { display: false } }
+          }
+        }
+      });
+
+      // Location radar — pick top 5 by volume
+      const locs = [...LOCATIONS].sort((a,b) => b.n - a.n).slice(0, 5);
+      destroyChart('locRadar');
+      charts.locRadar = new Chart(document.getElementById('chartLocRadar'), {
+        type: 'radar',
+        data: {
+          labels: ['Lead', 'Job Sat', 'Tool', 'L&D'],
+          datasets: locs.map((l, i) => {
+            const colors = ['#5b8cff', '#22d3ee', '#a78bfa', '#f59e0b', '#22c55e'];
+            return {
+              label: l.center,
+              data: [l.lead, l.job, l.tool, l.ld],
+              borderColor: colors[i],
+              backgroundColor: colors[i] + '33',
+              pointBackgroundColor: colors[i]
+            };
+          })
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { r: { min: 2.5, max: 5, ticks: { display: false }, grid: { color: '#243049' }, pointLabels: { color: '#e8eefc' } } },
+          plugins: { legend: { labels: { color: '#e8eefc', boxWidth: 12 } } }
+        }
+      });
+
+      // Themes horizontal
+      const th = [...THEMES].sort((a,b) => b.mentions - a.mentions).slice(0, 8);
+      destroyChart('themes');
+      charts.themes = new Chart(document.getElementById('chartThemes'), {
+        type: 'bar',
+        data: {
+          labels: th.map(t => t.theme),
+          datasets: [{ data: th.map(t => t.mentions), backgroundColor: '#a78bfaaa', borderRadius: 6 }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#93a0b8' }, grid: { color: '#243049' } },
+            y: { ticks: { color: '#e8eefc', font: { size: 10 } }, grid: { display: false } }
+          }
+        }
+      });
+
+      // Scatter
+      destroyChart('scatter');
+      charts.scatter = new Chart(document.getElementById('chartScatter'), {
+        type: 'bubble',
+        data: {
+          datasets: [{
+            label: 'TLs',
+            data: TLS.map(t => ({ x: t.n, y: t.lead, r: Math.max(4, Math.sqrt(t.n) * 2.2), name: t.name, flag: t.flag })),
+            backgroundColor: TLS.map(t => t.flag === 'BOTTOM' ? '#ef4444aa' : t.flag === 'TOP' ? '#22c55eaa' : '#5b8cff88')
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: {
+              label: (c) => {
+                const d = c.raw;
+                return `${d.name}: lead ${d.y}, n=${d.x}`;
+              }
+            }}
+          },
+          scales: {
+            x: { title: { display: true, text: '# Responses', color: '#93a0b8' }, ticks: { color: '#93a0b8' }, grid: { color: '#243049' } },
+            y: { min: 0, max: 5.2, title: { display: true, text: 'Lead score', color: '#93a0b8' }, ticks: { color: '#93a0b8' }, grid: { color: '#243049' } }
+          }
+        }
+      });
+
+      // Top vs bottom
+      const top = [...TLS].filter(t => t.n >= 3).sort((a,b) => b.lead - a.lead).slice(0, 6);
+      const bot = [...TLS].filter(t => t.n >= 1).sort((a,b) => a.lead - b.lead).slice(0, 6);
+      destroyChart('topBottom');
+      charts.topBottom = new Chart(document.getElementById('chartTopBottom'), {
+        type: 'bar',
+        data: {
+          labels: [...top.map(t => t.name.split(' ')[0]), ...bot.map(t => t.name.split(' ')[0])],
+          datasets: [{
+            data: [...top.map(t => t.lead), ...bot.map(t => t.lead)],
+            backgroundColor: [...top.map(() => '#22c55eaa'), ...bot.map(() => '#ef4444aa')],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, title: { display: true, text: 'Left: Top 6 (≥3 resp) · Right: Lowest 6', color: '#93a0b8', font: { size: 11 } } },
+          scales: {
+            y: { min: 0, max: 5, ticks: { color: '#93a0b8' }, grid: { color: '#243049' } },
+            x: { ticks: { color: '#93a0b8', font: { size: 10 } }, grid: { display: false } }
+          }
+        }
+      });
+
+      // Loc grouped bars
+      destroyChart('locBars');
+      charts.locBars = new Chart(document.getElementById('chartLocBars'), {
+        type: 'bar',
+        data: {
+          labels: LOCATIONS.map(l => l.center),
+          datasets: [
+            { label: 'Lead', data: LOCATIONS.map(l => l.lead), backgroundColor: '#5b8cffaa' },
+            { label: 'Job', data: LOCATIONS.map(l => l.job), backgroundColor: '#22d3eeaa' },
+            { label: 'Tool', data: LOCATIONS.map(l => l.tool), backgroundColor: '#f59e0baa' },
+            { label: 'L&D', data: LOCATIONS.map(l => l.ld), backgroundColor: '#a78bfaaa' }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: '#e8eefc', boxWidth: 12 } } },
+          scales: {
+            y: { min: 2.5, max: 5, ticks: { color: '#93a0b8' }, grid: { color: '#243049' } },
+            x: { ticks: { color: '#e8eefc' }, grid: { display: false } }
+          }
+        }
+      });
+
+      // Dims org-wide approximate
+      destroyChart('dims');
+      charts.dims = new Chart(document.getElementById('chartDims'), {
+        type: 'radar',
+        data: {
+          labels: [
+            'Available', 'Listens', 'Guides', 'Trust env', 'Equal respect',
+            'Ideas valued', 'Feel valued', 'Policy clarity', 'Accurate reporting'
+          ],
+          datasets: [{
+            label: 'Org avg (approx)',
+            data: [4.49, 4.48, 4.45, 4.52, 4.48, 4.49, 4.52, 4.52, 4.52],
+            borderColor: '#22d3ee',
+            backgroundColor: '#22d3ee33'
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { r: { min: 4, max: 5, ticks: { display: false }, grid: { color: '#243049' }, pointLabels: { color: '#e8eefc', font: { size: 9 } } } },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // Themes big
+      destroyChart('themesBig');
+      const th2 = [...THEMES].sort((a,b) => b.mentions - a.mentions);
+      charts.themesBig = new Chart(document.getElementById('chartThemesBig'), {
+        type: 'doughnut',
+        data: {
+          labels: th2.map(t => t.theme),
+          datasets: [{
+            data: th2.map(t => t.mentions),
+            backgroundColor: ['#5b8cff','#22d3ee','#a78bfa','#22c55e','#f59e0b','#ef4444','#94a3b8','#f472b6','#34d399','#818cf8','#fb923c','#c084fc']
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right', labels: { color: '#e8eefc', boxWidth: 10, font: { size: 10 } } } }
+        }
+      });
+    }
+
+    function refresh() {
+      renderTlTable();
+      buildCharts();
+    }
+
+    // Tabs
+    document.getElementById('tabs').addEventListener('click', (e) => {
+      const tab = e.target.closest('.tab');
+      if (!tab) return;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      // rebuild charts when becoming visible
+      setTimeout(buildCharts, 50);
+    });
+
+    // Filters
+    document.getElementById('filterCenter').addEventListener('change', refresh);
+    document.getElementById('filterFlag').addEventListener('change', refresh);
+    document.getElementById('searchTl').addEventListener('input', refresh);
+
+    // Sort
+    document.querySelectorAll('#tlTable th').forEach(th => {
+      th.addEventListener('click', () => {
+        const k = th.dataset.k;
+        if (!k) return;
+        if (sortKey === k) sortDir *= -1;
+        else { sortKey = k; sortDir = k === 'name' || k === 'centers' || k === 'flag' || k === 'notes' ? 1 : -1; }
+        renderTlTable();
+      });
+    });
+
+    // Init center filter
+    const centers = [...new Set(LOCATIONS.map(l => l.center))].sort();
+    const sel = document.getElementById('filterCenter');
+    centers.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+
+    renderKpis();
+    renderOverviewAlerts();
+    renderTlTable();
+    renderLocTable();
+    renderFocus();
+    renderThemes();
+    renderLocRisks();
+    renderActions();
+    buildCharts();
+  </script>
+</body>
+</html>
