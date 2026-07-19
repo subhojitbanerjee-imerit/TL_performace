@@ -247,7 +247,6 @@
                 <th data-k="tool">Tool</th>
                 <th data-k="ld">L&D</th>
                 <th data-k="centers">Center(s)</th>
-                <th data-k="wfh">WFH %</th>
                 <th data-k="flag">Flag</th>
                 <th data-k="notes">Notes / Action</th>
               </tr>
@@ -915,7 +914,6 @@
           <td class="${scoreColor(t.tool)}">${t.tool.toFixed(2)}</td>
           <td class="${scoreColor(t.ld)}">${t.ld.toFixed(2)}</td>
           <td>${t.centers}</td>
-          <td>${t.wfh}%</td>
           <td>${flagBadge(t.flag)}</td>
           <td style="color:var(--muted);max-width:280px">${t.notes || '—'}</td>
         </tr>`).join('');
