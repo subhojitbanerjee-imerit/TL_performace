@@ -4,8 +4,10 @@
  * Deploy as Web App (Execute as: Me · Who has access: Anyone in org / Anyone):
  *   Deploy → New deployment → Type: Web app
  *   Entry point: doGet  (required for Web App URL)
+ *   Opening the Web App URL auto-runs buildTlDashboard (no button click).
  *
  * Or run buildTlDashboard from the editor.
+ * Optional time trigger: Triggers → buildTlDashboard → Time-driven → Hourly/Daily.
  *
  * Spreadsheet:
  *   https://docs.google.com/spreadsheets/d/1D_oYej7qjYxgWQ8XtHKceb6fEVJUlNZzLiOX2RQVb0k/
@@ -65,26 +67,47 @@ function notify_(message) {
 
 /**
  * Web App entry point — required when deploying as Web App.
- * URL params:
- *   ?action=rebuild  — rebuild scorecards then show result page
- *   (default)        — home page with Rebuild button
+ *
+ * Default: REBUILDS scorecards automatically on every open.
+ * Optional params:
+ *   ?action=home     — show home only (no rebuild)
+ *   ?action=rebuild  — same as default (explicit rebuild)
+ *   ?view=json       — return JSON summary instead of HTML
  */
 function doGet(e) {
   e = e || { parameter: {} };
-  var action = (e.parameter && e.parameter.action) || '';
+  var action = (e.parameter && e.parameter.action) || 'rebuild';
+  var view = (e.parameter && e.parameter.view) || 'html';
 
-  if (action === 'rebuild') {
-    try {
-      var result = buildTlDashboard();
-      return htmlPage_('Scorecards rebuilt', rebuildSuccessHtml_(result), true);
-    } catch (err) {
-      return htmlPage_('Rebuild failed', '<p class="err">' + escapeHtml_(String(err.message || err)) + '</p>' +
-        '<p><a href="?">← Back</a></p>', false);
-    }
+  // Only skip auto-rebuild if user explicitly asks for home
+  if (action === 'home') {
+    return htmlPage_('TL Performance Dashboard', homeHtml_(), true);
   }
 
-  // Default landing page
-  return htmlPage_('TL Performance Dashboard', homeHtml_(), true);
+  // Auto rebuild on open (default)
+  try {
+    var result = buildTlDashboard();
+    if (view === 'json') {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, result: result }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    return htmlPage_('Scorecards rebuilt', rebuildSuccessHtml_(result), true);
+  } catch (err) {
+    if (view === 'json') {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, error: String(err.message || err) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    return htmlPage_(
+      'Rebuild failed',
+      '<h1>Rebuild failed</h1>' +
+        '<div class="card"><p class="err">' + escapeHtml_(String(err.message || err)) + '</p>' +
+        '<p class="actions"><a class="btn" href="?action=rebuild">Try again</a> ' +
+        '<a class="btn secondary" href="?action=home">Home</a></p></div>',
+      false
+    );
+  }
 }
 
 /**
@@ -107,25 +130,24 @@ function homeHtml_() {
   var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit';
   return '' +
     '<h1>TL Performance Dashboard</h1>' +
-    '<p class="muted">Standalone Apps Script · scorecards written into your Google Sheet</p>' +
+    '<p class="muted">Opening the Web App URL auto-rebuilds scorecards. This is the idle home view.</p>' +
     '<div class="card">' +
     '<p><strong>Spreadsheet</strong><br><a href="' + sheetUrl + '" target="_blank" rel="noopener">Open Google Sheet</a></p>' +
     '<p><strong>Source tab gid</strong> ' + SOURCE_SHEET_GID + '</p>' +
-    '<p>Tabs created/updated: <code>TL_Scorecard</code>, <code>Location_Scorecard</code>, ' +
+    '<p>Tabs: <code>TL_Scorecard</code>, <code>Location_Scorecard</code>, ' +
     '<code>Workflow_Scorecard</code>, <code>Period_Scorecard</code></p>' +
     '<p class="actions">' +
-    '<a class="btn" href="?action=rebuild">Rebuild scorecards now</a>' +
+    '<a class="btn" href="?action=rebuild">Rebuild scorecards</a>' +
     '</p>' +
-    '</div>' +
-    '<p class="muted">After rebuild, filter by Year / Month / Month-Year on the scorecard tabs, ' +
-    'or open the HTML dashboard from the GitHub repo.</p>';
+    '</div>';
 }
 
 function rebuildSuccessHtml_(result) {
   var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit';
   result = result || {};
   return '' +
-    '<h1>Scorecards rebuilt</h1>' +
+    '<h1>Scorecards updated automatically</h1>' +
+    '<p class="muted">Rebuild ran on page load · ' + new Date().toLocaleString() + '</p>' +
     '<div class="card ok">' +
     '<p><strong>Source:</strong> ' + escapeHtml_(result.sourceName || '') +
     ' (gid ' + escapeHtml_(String(result.sourceGid || '')) + ')</p>' +
@@ -136,10 +158,11 @@ function rebuildSuccessHtml_(result) {
     ' · <strong>Periods:</strong> ' + (result.periods || 0) + '</p>' +
     '<p class="actions">' +
     '<a class="btn" href="' + sheetUrl + '" target="_blank" rel="noopener">Open spreadsheet</a> ' +
-    '<a class="btn secondary" href="?">Home</a> ' +
     '<a class="btn secondary" href="?action=rebuild">Rebuild again</a>' +
     '</p>' +
-    '</div>';
+    '</div>' +
+    '<p class="muted">Open the scorecard tabs in the sheet and filter by Year / Month / Month-Year.</p>' +
+    '<script>/* auto-rebuild complete */</script>';
 }
 
 function htmlPage_(title, bodyHtml, ok) {
