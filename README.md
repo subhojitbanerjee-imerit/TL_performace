@@ -14,10 +14,27 @@ Open **[index.html](./index.html)** in a browser (or enable GitHub Pages on this
 | `Code.gs` | Google Apps Script to build `TL_Scorecard` / `Location_Scorecard` from sheet data |
 | `Google_Sheets_Dashboard_Setup.md` | How to wire the Google Sheet (`responses_consolidated`) |
 
+### Data structure (`responses_consolidated`)
+
+Survey columns (plus period fields):
+
+`Timestamp` · Lead · Workflows · Center · WFO/WFH · 9 lead ratings · Job satisfaction · strengths/improvements · lead feedback · 5 tool ratings · tool suggestions · exec feedback · innovations · L&D score · L&D feedback · final comments · Column 29 · **`Month`** · **`Year`** · **`Month-Year`**
+
+### Filters (header)
+
+| Filter | Purpose |
+|--------|---------|
+| **Year** | e.g. 2026 |
+| **Month** | e.g. June (1–12) |
+| **Month-Year** | e.g. `June-2026` (synced with Year/Month) |
+| Center | Location |
+| Workflow | Project workflow |
+| TL flag | TOP / OK / BOTTOM |
+
 ### Dashboard tabs
 
 1. **Overview** — KPIs, charts, priority alerts, workflow health  
-2. **TL-wise Performance** — sortable scorecard, volume vs score (filter by center **or workflow**)  
+2. **TL-wise Performance** — sortable scorecard (filter by Year/Month/period/center/workflow)  
 3. **Workflow Analysis** — scorecard by project workflow, theme heat, risk cards, deep-dives  
 4. **Focus Areas for TLs** — coaching cards for BOTTOM / WATCH leads  
 5. **Location Issues** — center-level risk (SLT, Pune, Hyderabad, …)  
@@ -52,7 +69,7 @@ Source sheet (private):
 3. Paste `Code.gs`  
 4. Run `buildTlDashboard`  
 
-This creates/refreshes **TL_Scorecard**, **Location_Scorecard**, and **Workflow_Scorecard** tabs.
+This creates/refreshes **TL_Scorecard**, **Location_Scorecard**, **Workflow_Scorecard**, and **Period_Scorecard** tabs (each includes Year / Month / Month-Year for filtering).
 
 ---
 

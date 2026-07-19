@@ -166,9 +166,18 @@
   <header>
     <div class="brand">
       <h1>iMerit Employee Feedback Dashboard</h1>
-      <span>Source: responses_consolidated · June 2026 · 274 responses · TL · Workflow · Location · Focus Areas</span>
+      <span id="brandSub">Source: responses_consolidated · TL · Workflow · Location · Month/Year filters</span>
     </div>
     <div class="controls">
+      <select id="filterYear" title="Filter by year">
+        <option value="all">All years</option>
+      </select>
+      <select id="filterMonth" title="Filter by month">
+        <option value="all">All months</option>
+      </select>
+      <select id="filterMonthYear" title="Filter by Month-Year">
+        <option value="all">All periods</option>
+      </select>
       <select id="filterCenter" title="Filter by center">
         <option value="all">All centers</option>
       </select>
@@ -434,69 +443,94 @@
 
   <script>
     // ========== DATA ==========
+    // Sheet columns (responses_consolidated):
+    // Timestamp, Lead, Workflows, Center, WFO/WFH, 9 lead Likert items, Job sat,
+    // strengths/improvements, lead feedback, 5 tool Likert items, tool suggestions,
+    // exec feedback, innovations, L&D score, L&D feedback, final comments,
+    // Column 29, Month, Year, Month-Year
+    const MONTH_NAMES = {
+      1:'January',2:'February',3:'March',4:'April',5:'May',6:'June',
+      7:'July',8:'August',9:'September',10:'October',11:'November',12:'December'
+    };
+    function toMonthYear(month, year) {
+      const m = Number(month);
+      const name = MONTH_NAMES[m] || String(month);
+      return name + '-' + year;
+    }
+
+    // Available periods from data (extend when new months land)
+    const PERIODS = [
+      { year: 2026, month: 6, monthYear: 'June-2026', label: 'June 2026' }
+    ];
+
     const KPI = {
       responses: 274,
       jobSat: 4.23,
       lead: 4.39,
       tool: 3.82,
       ld: 4.14,
-      wfhPct: 28.5
+      wfhPct: 28.5,
+      year: 2026,
+      month: 6,
+      monthYear: 'June-2026'
     };
 
+    // Each TL row tagged with year/month/monthYear for period filters
     const TLS = [
-      { rank:1, name:'Teegula Kavya Shree', n:10, lead:5, job:4.8, tool:4.3, ld:4.9, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'' },
-      { rank:2, name:'Rawoof', n:7, lead:5, job:5, tool:5, ld:5, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'' },
-      { rank:3, name:'Bhupendar.k', n:6, lead:5, job:4.67, tool:4.87, ld:4.83, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'' },
-      { rank:4, name:'Murtuza Taher', n:2, lead:5, job:5, tool:4, ld:3, centers:'SLT', wfh:50, flag:'OK', notes:'Low sample: validate with more feedback or 1:1.' },
-      { rank:5, name:'Anumita Das', n:1, lead:5, job:5, tool:4.2, ld:5, centers:'Pune', wfh:0, flag:'OK', notes:'Low sample.' },
-      { rank:6, name:'Arkajit', n:1, lead:5, job:4, tool:4, ld:5, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.' },
-      { rank:7, name:'Shireen Khatoon', n:1, lead:5, job:4, tool:4, ld:4, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.' },
-      { rank:8, name:'Subham Mukhrjee', n:1, lead:5, job:5, tool:4.6, ld:5, centers:'MBZ', wfh:0, flag:'OK', notes:'Low sample.' },
-      { rank:9, name:'Indrajit Lalaso Patil', n:23, lead:4.91, job:4.78, tool:4.3, ld:4.7, centers:'Pune', wfh:26.1, flag:'TOP', notes:'' },
-      { rank:10, name:'Abhishek Rajan Muniswami', n:12, lead:4.91, job:4.5, tool:3.95, ld:4.83, centers:'Pune', wfh:0, flag:'TOP', notes:'' },
-      { rank:11, name:'Debarati Bera', n:9, lead:4.75, job:4.22, tool:3.89, ld:4.11, centers:'Pune, SLT', wfh:44.4, flag:'TOP', notes:'' },
-      { rank:12, name:'Sneha Achyutananda Parida', n:4, lead:4.72, job:4, tool:4.2, ld:4.5, centers:'Hyderabad, Pune', wfh:0, flag:'OK', notes:'' },
-      { rank:13, name:'Sarojini Mathan', n:3, lead:4.67, job:4.33, tool:4, ld:4.33, centers:'BBS, BRP', wfh:100, flag:'OK', notes:'' },
-      { rank:14, name:'Abdul Rasheed Shaik', n:12, lead:4.57, job:4.25, tool:3.95, ld:4.33, centers:'Hyderabad', wfh:16.7, flag:'TOP', notes:'' },
-      { rank:15, name:'Edupalli Asritha Nayani', n:7, lead:4.57, job:4.57, tool:3.57, ld:4, centers:'CBTR', wfh:0, flag:'TOP', notes:'' },
-      { rank:16, name:'Samsher Alam', n:3, lead:4.52, job:3.67, tool:2.67, ld:3, centers:'SLT', wfh:0, flag:'OK', notes:'Low tool score — escalate tool issues.' },
-      { rank:17, name:'Sadiqa Khurshid', n:9, lead:4.46, job:3.78, tool:3.91, ld:4.11, centers:'BRP, MBZ, SLT', wfh:100, flag:'OK', notes:'' },
-      { rank:18, name:'Sritama Sarkar', n:4, lead:4.45, job:4, tool:3.9, ld:4, centers:'Hyderabad, Pune', wfh:0, flag:'OK', notes:'' },
-      { rank:19, name:'Shweta Dash', n:21, lead:4.42, job:4.43, tool:3.86, ld:4.29, centers:'Pune', wfh:28.6, flag:'OK', notes:'High volume; strong psych safety praise; push team visibility upward.' },
-      { rank:20, name:'Swati Kishor Saledar', n:12, lead:4.38, job:4.33, tool:4.07, ld:4.33, centers:'Pune', wfh:25, flag:'OK', notes:'' },
-      { rank:21, name:'Aditee Naskar', n:11, lead:4.35, job:3.91, tool:3, ld:3.73, centers:'BRP, Pune', wfh:27.3, flag:'OK', notes:'WFH policy escalations from team; tool score low.' },
-      { rank:22, name:'Amit Kumar', n:5, lead:4.31, job:4.4, tool:3.76, ld:4, centers:'MBZ, SLT', wfh:100, flag:'OK', notes:'' },
-      { rank:23, name:'Mayur Dnyaneshwar Nirgule', n:5, lead:4.24, job:4.4, tool:2.96, ld:3.8, centers:'Hyderabad, Pune', wfh:40, flag:'OK', notes:'Some feedback on lack of feedback/comms; tool lag.' },
-      { rank:24, name:'Karpe Gayatri', n:43, lead:4.2, job:4.07, tool:3.51, ld:3.7, centers:'Hyderabad', wfh:2.3, flag:'OK', notes:'Highest volume. Mixed: crashes, 9hr shift asks, leave mgmt, equal treatment themes.' },
-      { rank:25, name:'Chirantan Baidya', n:4, lead:4.17, job:4, tool:3.15, ld:4, centers:'BRP', wfh:100, flag:'OK', notes:'' },
-      { rank:26, name:'Sudip Sen', n:2, lead:4.17, job:4, tool:4, ld:4, centers:'CBTR', wfh:0, flag:'OK', notes:'Low sample.' },
-      { rank:27, name:'Shahbaz Rashid', n:1, lead:4.11, job:4, tool:2.6, ld:3, centers:'MBZ', wfh:0, flag:'OK', notes:'Low sample; tool lagging.' },
-      { rank:28, name:'Akshay Prashant Umredkar', n:20, lead:4.06, job:4.1, tool:4.23, ld:4.35, centers:'Pune', wfh:40, flag:'OK', notes:'High volume; some low outliers (respect/support). Mixed self-ratings.' },
-      { rank:29, name:'Debipriya Banerjee', n:8, lead:4, job:3.88, tool:3.65, ld:4.12, centers:'Pune, SLT', wfh:50, flag:'OK', notes:'Serious complaint on one GEN-AI lead interaction (wifi/WFH trust) — case review.' },
-      { rank:30, name:'Rahuljeet Banerjee', n:1, lead:4, job:4, tool:4, ld:4, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.' },
-      { rank:31, name:'Samyak Rahul Ramteke', n:1, lead:4, job:4, tool:3, ld:3, centers:'BRP', wfh:100, flag:'OK', notes:'Low sample.' },
-      { rank:32, name:'Amitabha Mondal', n:4, lead:3.81, job:4, tool:3.95, ld:3.75, centers:'BRP, MBZ', wfh:100, flag:'BOTTOM', notes:'Ops follow-up: timesheets/response tracking; coaching on consistency.' },
-      { rank:33, name:'Jenif Ahmed Molla', n:3, lead:3.67, job:3.67, tool:3.6, ld:3.67, centers:'BRP, Hyderabad', wfh:33.3, flag:'BOTTOM', notes:'Flat mid-low scores — pulse check team mood.' },
-      { rank:34, name:'Pradipta Das', n:5, lead:3.42, job:3.2, tool:3.6, ld:3.4, centers:'BBS, BRP, MBZ, SLT', wfh:100, flag:'BOTTOM', notes:'Accessibility, equal treatment, feeling valued. HIGH priority coaching.' },
-      { rank:35, name:'Anupam Das', n:9, lead:3.4, job:3.78, tool:3.09, ld:3.22, centers:'Hyderabad, SLT', wfh:44.4, flag:'BOTTOM', notes:'Inconsistent scores incl. 1s. Tool crashes + leadership variance. Review.' },
-      { rank:36, name:'Sanglap Kundu', n:3, lead:3.33, job:3.33, tool:2.6, ld:3.33, centers:'SLT', wfh:66.7, flag:'BOTTOM', notes:'Office-obsessed / stress culture feedback. Leadership style review.' },
-      { rank:37, name:'Rupsha Chakraborty', n:1, lead:1, job:1, tool:2, ld:2, centers:'SLT', wfh:0, flag:'BOTTOM', notes:'CRITICAL: escalations without verbal notice; non-cooperation. Immediate HR/Ops case.' }
+      { rank:1, name:'Teegula Kavya Shree', n:10, lead:5, job:4.8, tool:4.3, ld:4.9, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:2, name:'Rawoof', n:7, lead:5, job:5, tool:5, ld:5, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:3, name:'Bhupendar.k', n:6, lead:5, job:4.67, tool:4.87, ld:4.83, centers:'Hyderabad', wfh:0, flag:'TOP', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:4, name:'Murtuza Taher', n:2, lead:5, job:5, tool:4, ld:3, centers:'SLT', wfh:50, flag:'OK', notes:'Low sample: validate with more feedback or 1:1.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:5, name:'Anumita Das', n:1, lead:5, job:5, tool:4.2, ld:5, centers:'Pune', wfh:0, flag:'OK', notes:'Low sample.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:6, name:'Arkajit', n:1, lead:5, job:4, tool:4, ld:5, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:7, name:'Shireen Khatoon', n:1, lead:5, job:4, tool:4, ld:4, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:8, name:'Subham Mukhrjee', n:1, lead:5, job:5, tool:4.6, ld:5, centers:'MBZ', wfh:0, flag:'OK', notes:'Low sample.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:9, name:'Indrajit Lalaso Patil', n:23, lead:4.91, job:4.78, tool:4.3, ld:4.7, centers:'Pune', wfh:26.1, flag:'TOP', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:10, name:'Abhishek Rajan Muniswami', n:12, lead:4.91, job:4.5, tool:3.95, ld:4.83, centers:'Pune', wfh:0, flag:'TOP', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:11, name:'Debarati Bera', n:9, lead:4.75, job:4.22, tool:3.89, ld:4.11, centers:'Pune, SLT', wfh:44.4, flag:'TOP', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:12, name:'Sneha Achyutananda Parida', n:4, lead:4.72, job:4, tool:4.2, ld:4.5, centers:'Hyderabad, Pune', wfh:0, flag:'OK', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:13, name:'Sarojini Mathan', n:3, lead:4.67, job:4.33, tool:4, ld:4.33, centers:'BBS, BRP', wfh:100, flag:'OK', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:14, name:'Abdul Rasheed Shaik', n:12, lead:4.57, job:4.25, tool:3.95, ld:4.33, centers:'Hyderabad', wfh:16.7, flag:'TOP', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:15, name:'Edupalli Asritha Nayani', n:7, lead:4.57, job:4.57, tool:3.57, ld:4, centers:'CBTR', wfh:0, flag:'TOP', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:16, name:'Samsher Alam', n:3, lead:4.52, job:3.67, tool:2.67, ld:3, centers:'SLT', wfh:0, flag:'OK', notes:'Low tool score — escalate tool issues.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:17, name:'Sadiqa Khurshid', n:9, lead:4.46, job:3.78, tool:3.91, ld:4.11, centers:'BRP, MBZ, SLT', wfh:100, flag:'OK', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:18, name:'Sritama Sarkar', n:4, lead:4.45, job:4, tool:3.9, ld:4, centers:'Hyderabad, Pune', wfh:0, flag:'OK', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:19, name:'Shweta Dash', n:21, lead:4.42, job:4.43, tool:3.86, ld:4.29, centers:'Pune', wfh:28.6, flag:'OK', notes:'High volume; strong psych safety praise; push team visibility upward.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:20, name:'Swati Kishor Saledar', n:12, lead:4.38, job:4.33, tool:4.07, ld:4.33, centers:'Pune', wfh:25, flag:'OK', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:21, name:'Aditee Naskar', n:11, lead:4.35, job:3.91, tool:3, ld:3.73, centers:'BRP, Pune', wfh:27.3, flag:'OK', notes:'WFH policy escalations from team; tool score low.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:22, name:'Amit Kumar', n:5, lead:4.31, job:4.4, tool:3.76, ld:4, centers:'MBZ, SLT', wfh:100, flag:'OK', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:23, name:'Mayur Dnyaneshwar Nirgule', n:5, lead:4.24, job:4.4, tool:2.96, ld:3.8, centers:'Hyderabad, Pune', wfh:40, flag:'OK', notes:'Some feedback on lack of feedback/comms; tool lag.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:24, name:'Karpe Gayatri', n:43, lead:4.2, job:4.07, tool:3.51, ld:3.7, centers:'Hyderabad', wfh:2.3, flag:'OK', notes:'Highest volume. Mixed: crashes, 9hr shift asks, leave mgmt, equal treatment themes.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:25, name:'Chirantan Baidya', n:4, lead:4.17, job:4, tool:3.15, ld:4, centers:'BRP', wfh:100, flag:'OK', notes:'', year:2026, month:6, monthYear:'June-2026' },
+      { rank:26, name:'Sudip Sen', n:2, lead:4.17, job:4, tool:4, ld:4, centers:'CBTR', wfh:0, flag:'OK', notes:'Low sample.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:27, name:'Shahbaz Rashid', n:1, lead:4.11, job:4, tool:2.6, ld:3, centers:'MBZ', wfh:0, flag:'OK', notes:'Low sample; tool lagging.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:28, name:'Akshay Prashant Umredkar', n:20, lead:4.06, job:4.1, tool:4.23, ld:4.35, centers:'Pune', wfh:40, flag:'OK', notes:'High volume; some low outliers (respect/support). Mixed self-ratings.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:29, name:'Debipriya Banerjee', n:8, lead:4, job:3.88, tool:3.65, ld:4.12, centers:'Pune, SLT', wfh:50, flag:'OK', notes:'Serious complaint on one GEN-AI lead interaction (wifi/WFH trust) — case review.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:30, name:'Rahuljeet Banerjee', n:1, lead:4, job:4, tool:4, ld:4, centers:'SLT', wfh:0, flag:'OK', notes:'Low sample.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:31, name:'Samyak Rahul Ramteke', n:1, lead:4, job:4, tool:3, ld:3, centers:'BRP', wfh:100, flag:'OK', notes:'Low sample.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:32, name:'Amitabha Mondal', n:4, lead:3.81, job:4, tool:3.95, ld:3.75, centers:'BRP, MBZ', wfh:100, flag:'BOTTOM', notes:'Ops follow-up: timesheets/response tracking; coaching on consistency.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:33, name:'Jenif Ahmed Molla', n:3, lead:3.67, job:3.67, tool:3.6, ld:3.67, centers:'BRP, Hyderabad', wfh:33.3, flag:'BOTTOM', notes:'Flat mid-low scores — pulse check team mood.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:34, name:'Pradipta Das', n:5, lead:3.42, job:3.2, tool:3.6, ld:3.4, centers:'BBS, BRP, MBZ, SLT', wfh:100, flag:'BOTTOM', notes:'Accessibility, equal treatment, feeling valued. HIGH priority coaching.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:35, name:'Anupam Das', n:9, lead:3.4, job:3.78, tool:3.09, ld:3.22, centers:'Hyderabad, SLT', wfh:44.4, flag:'BOTTOM', notes:'Inconsistent scores incl. 1s. Tool crashes + leadership variance. Review.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:36, name:'Sanglap Kundu', n:3, lead:3.33, job:3.33, tool:2.6, ld:3.33, centers:'SLT', wfh:66.7, flag:'BOTTOM', notes:'Office-obsessed / stress culture feedback. Leadership style review.', year:2026, month:6, monthYear:'June-2026' },
+      { rank:37, name:'Rupsha Chakraborty', n:1, lead:1, job:1, tool:2, ld:2, centers:'SLT', wfh:0, flag:'BOTTOM', notes:'CRITICAL: escalations without verbal notice; non-cooperation. Immediate HR/Ops case.', year:2026, month:6, monthYear:'June-2026' }
     ];
 
     const LOCATIONS = [
-      { center:'BBS', n:3, lead:4.67, job:4.33, tool:3.53, ld:4.67, wfh:100, wfo:0, concern:'Positive on leads/trainers. Tool loading noted.' },
-      { center:'BRP', n:20, lead:4.06, job:3.65, tool:3.68, ld:3.8, wfh:95, wfo:5, concern:'Mostly WFH. Job sat lower. Camera/view tool asks.' },
-      { center:'CBTR', n:9, lead:4.48, job:4.44, tool:3.67, ld:4, wfh:0, wfo:100, concern:'Tool lag/speed; desire to learn more workflows.' },
-      { center:'Hyderabad', n:90, lead:4.42, job:4.31, tool:3.89, ld:4.13, wfh:3.3, wfo:96.7, concern:'High volume (Karpe). Crashes/lag, 9hr shift, leave fairness.' },
-      { center:'MBZ', n:6, lead:4.11, job:4.33, tool:3.47, ld:3.83, wfh:66.7, wfo:33.3, concern:'Smaller n; tool lag mentions.' },
-      { center:'Pune', n:117, lead:4.52, job:4.34, tool:3.95, ld:4.37, wfh:27.4, wfo:71.8, concern:'Largest n. Strong leads overall but WFH policy partiality is hot issue.' },
-      { center:'SLT', n:29, lead:3.98, job:3.79, tool:3.34, ld:3.48, wfh:58.6, wfo:41.4, concern:'Priority location — outliers (Rupsha, Pradipta, Sanglap). Lowest tool/L&D.' }
+      { center:'BBS', n:3, lead:4.67, job:4.33, tool:3.53, ld:4.67, wfh:100, wfo:0, concern:'Positive on leads/trainers. Tool loading noted.', year:2026, month:6, monthYear:'June-2026' },
+      { center:'BRP', n:20, lead:4.06, job:3.65, tool:3.68, ld:3.8, wfh:95, wfo:5, concern:'Mostly WFH. Job sat lower. Camera/view tool asks.', year:2026, month:6, monthYear:'June-2026' },
+      { center:'CBTR', n:9, lead:4.48, job:4.44, tool:3.67, ld:4, wfh:0, wfo:100, concern:'Tool lag/speed; desire to learn more workflows.', year:2026, month:6, monthYear:'June-2026' },
+      { center:'Hyderabad', n:90, lead:4.42, job:4.31, tool:3.89, ld:4.13, wfh:3.3, wfo:96.7, concern:'High volume (Karpe). Crashes/lag, 9hr shift, leave fairness.', year:2026, month:6, monthYear:'June-2026' },
+      { center:'MBZ', n:6, lead:4.11, job:4.33, tool:3.47, ld:3.83, wfh:66.7, wfo:33.3, concern:'Smaller n; tool lag mentions.', year:2026, month:6, monthYear:'June-2026' },
+      { center:'Pune', n:117, lead:4.52, job:4.34, tool:3.95, ld:4.37, wfh:27.4, wfo:71.8, concern:'Largest n. Strong leads overall but WFH policy partiality is hot issue.', year:2026, month:6, monthYear:'June-2026' },
+      { center:'SLT', n:29, lead:3.98, job:3.79, tool:3.34, ld:3.48, wfh:58.6, wfo:41.4, concern:'Priority location — outliers (Rupsha, Pradipta, Sanglap). Lowest tool/L&D.', year:2026, month:6, monthYear:'June-2026' }
     ];
 
     // Workflow-wise analysis (multi-select rows counted under each selected workflow)
     const WORKFLOWS = [
       {
         workflow: 'Sim Behaviour', n: 190, lead: 4.34, job: 4.32, tool: 3.99, ld: 4.30,
+        year: 2026, month: 6, monthYear: 'June-2026',
         wfh: 28, wfo: 72,
         centers: 'Pune, Hyderabad, BRP, SLT',
         topLeads: 'Karpe Gayatri · Indrajit · Shweta Dash · Akshay · Aditee',
@@ -516,6 +550,7 @@
       },
       {
         workflow: 'Sim Collision', n: 32, lead: 4.26, job: 4.11, tool: 3.60, ld: 4.09,
+        year: 2026, month: 6, monthYear: 'June-2026',
         wfh: 25, wfo: 75,
         centers: 'Pune, Hyderabad, BRP',
         topLeads: 'Abhishek Rajan Muniswami · Karpe Gayatri · Chirantan Baidya',
@@ -534,6 +569,7 @@
       },
       {
         workflow: 'LiDAR 3D Cuboid', n: 25, lead: 4.72, job: 4.62, tool: 4.33, ld: 4.38,
+        year: 2026, month: 6, monthYear: 'June-2026',
         wfh: 16, wfo: 84,
         centers: 'Hyderabad, SLT, MBZ',
         topLeads: 'Abdul Rasheed Shaik · Teegula Kavya Shree · Samsher Alam · Murtuza Taher',
@@ -552,6 +588,7 @@
       },
       {
         workflow: 'Nuro Context mapping', n: 13, lead: 4.23, job: 4.20, tool: 3.50, ld: 4.00,
+        year: 2026, month: 6, monthYear: 'June-2026',
         wfh: 10, wfo: 90,
         centers: 'CBTR, SLT, MBZ',
         topLeads: 'Edupalli Asritha Nayani · Sudip Sen · Arkajit · Shahbaz Rashid',
@@ -570,6 +607,7 @@
       },
       {
         workflow: 'GEN-AI (LLM)', n: 9, lead: 3.82, job: 3.90, tool: 3.40, ld: 3.80,
+        year: 2026, month: 6, monthYear: 'June-2026',
         wfh: 45, wfo: 55,
         centers: 'SLT, Pune',
         topLeads: 'Debipriya Banerjee · Sanglap Kundu · (mixed GEN-AI leads)',
@@ -588,6 +626,7 @@
       },
       {
         workflow: 'Visual Similarity Search', n: 2, lead: 4.50, job: 4.00, tool: 4.00, ld: 4.00,
+        year: 2026, month: 6, monthYear: 'June-2026',
         wfh: 50, wfo: 50,
         centers: 'Pune, SLT',
         topLeads: 'Shweta Dash · Rahuljeet Banerjee',
@@ -604,6 +643,7 @@
       },
       {
         workflow: 'Audio Siren', n: 1, lead: 4.78, job: 4.00, tool: 4.00, ld: 4.00,
+        year: 2026, month: 6, monthYear: 'June-2026',
         wfh: 0, wfo: 100,
         centers: 'Hyderabad',
         topLeads: 'Sritama Sarkar',
@@ -620,6 +660,7 @@
       },
       {
         workflow: 'Track Attribute', n: 1, lead: 5.00, job: 5.00, tool: 3.20, ld: 4.00,
+        year: 2026, month: 6, monthYear: 'June-2026',
         wfh: 100, wfo: 0,
         centers: 'SLT',
         topLeads: 'Anupam Das',
@@ -796,12 +837,45 @@
       return `<span class="badge ${map[st] || 'ok'}">${st}</span>`;
     }
 
+    function getPeriodFilters() {
+      return {
+        year: document.getElementById('filterYear').value,
+        month: document.getElementById('filterMonth').value,
+        monthYear: document.getElementById('filterMonthYear').value
+      };
+    }
+
+    function matchesPeriod(row) {
+      const f = getPeriodFilters();
+      if (f.year !== 'all' && String(row.year) !== String(f.year)) return false;
+      if (f.month !== 'all' && String(row.month) !== String(f.month)) return false;
+      if (f.monthYear !== 'all' && String(row.monthYear) !== String(f.monthYear)) return false;
+      return true;
+    }
+
+    function periodLabel() {
+      const f = getPeriodFilters();
+      if (f.monthYear !== 'all') return f.monthYear;
+      if (f.month !== 'all' && f.year !== 'all') return toMonthYear(f.month, f.year);
+      if (f.month !== 'all') return (MONTH_NAMES[Number(f.month)] || f.month) + ' (all years)';
+      if (f.year !== 'all') return 'Year ' + f.year;
+      return 'All periods';
+    }
+
+    function updateBrandSub() {
+      const n = filteredTls().reduce((s, t) => s + (t.n || 0), 0);
+      document.getElementById('brandSub').textContent =
+        'Source: responses_consolidated · ' + periodLabel() +
+        ' · filters: Year / Month / Month-Year · TL · Workflow · Location';
+    }
+
     function filteredTls() {
       const center = document.getElementById('filterCenter').value;
       const flag = document.getElementById('filterFlag').value;
       const wf = document.getElementById('filterWorkflow').value;
       const q = document.getElementById('searchTl').value.trim().toLowerCase();
       return TLS.filter(t => {
+        if (!matchesPeriod(t)) return false;
         if (flag !== 'all' && t.flag !== flag) return false;
         if (center !== 'all' && !t.centers.split(',').map(s => s.trim()).includes(center) && t.centers !== center) {
           if (!t.centers.includes(center)) return false;
@@ -819,20 +893,41 @@
       });
     }
 
+    function filteredWorkflows() {
+      return WORKFLOWS.filter(matchesPeriod);
+    }
+
+    function filteredLocations() {
+      return LOCATIONS.filter(matchesPeriod);
+    }
+
     // ========== RENDER ==========
     function renderKpis() {
+      const tls = filteredTls();
+      const n = tls.reduce((s, t) => s + (t.n || 0), 0) || KPI.responses;
+      const avgOf = (key) => {
+        const xs = tls.filter(t => t[key] != null);
+        if (!xs.length) return KPI[key === 'lead' ? 'lead' : key === 'job' ? 'jobSat' : key === 'tool' ? 'tool' : 'ld'];
+        const w = xs.reduce((s, t) => s + t.n * t[key], 0);
+        const d = xs.reduce((s, t) => s + t.n, 0);
+        return d ? w / d : null;
+      };
+      const lead = avgOf('lead');
+      const job = avgOf('job');
+      const tool = avgOf('tool');
+      const ld = avgOf('ld');
       const items = [
-        { label:'Responses', value: KPI.responses, sub:'June 2026 consolidated', cls:'' },
-        { label:'Job satisfaction', value: KPI.jobSat.toFixed(2), sub:'Target 4.0+', cls: scoreColor(KPI.jobSat) },
-        { label:'Lead performance', value: KPI.lead.toFixed(2), sub:'Avg of 9 items', cls: scoreColor(KPI.lead) },
-        { label:'Labeling tool', value: KPI.tool.toFixed(2), sub:'Needs improvement', cls: scoreColor(KPI.tool) },
-        { label:'L&D / Trainer', value: KPI.ld.toFixed(2), sub:'Target 4.0+', cls: scoreColor(KPI.ld) },
-        { label:'WFH share', value: KPI.wfhPct + '%', sub:'Of responses', cls:'' }
+        { label:'Responses', value: n, sub: periodLabel(), cls:'' },
+        { label:'Job satisfaction', value: (job ?? KPI.jobSat).toFixed(2), sub:'Target 4.0+', cls: scoreColor(job ?? KPI.jobSat) },
+        { label:'Lead performance', value: (lead ?? KPI.lead).toFixed(2), sub:'Avg of 9 items', cls: scoreColor(lead ?? KPI.lead) },
+        { label:'Labeling tool', value: (tool ?? KPI.tool).toFixed(2), sub:'Needs improvement', cls: scoreColor(tool ?? KPI.tool) },
+        { label:'L&D / Trainer', value: (ld ?? KPI.ld).toFixed(2), sub:'Target 4.0+', cls: scoreColor(ld ?? KPI.ld) },
+        { label:'Period', value: periodLabel(), sub:'Year / Month / Month-Year', cls:'' }
       ];
       document.getElementById('kpiGrid').innerHTML = items.map(i => `
         <div class="kpi">
           <div class="label">${i.label}</div>
-          <div class="value ${i.cls}">${i.value}</div>
+          <div class="value ${i.cls}" style="font-size:${String(i.value).length > 10 ? '1rem' : '1.55rem'}">${i.value}</div>
           <div class="sub">${i.sub}</div>
         </div>`).join('');
     }
@@ -847,7 +942,14 @@
     }
 
     function renderWorkflow() {
-      const rows = [...WORKFLOWS].sort((a, b) => b.n - a.n);
+      const rows = [...filteredWorkflows()].sort((a, b) => b.n - a.n);
+      if (!rows.length) {
+        document.getElementById('wfKpiGrid').innerHTML = '<div class="kpi"><div class="label">No data</div><div class="value">—</div><div class="sub">Try All periods</div></div>';
+        document.querySelector('#wfTable tbody').innerHTML = '<tr><td colspan="12" style="color:var(--muted)">No workflows for selected Month/Year.</td></tr>';
+        document.getElementById('wfRisks').innerHTML = '';
+        document.getElementById('wfDeepDive').innerHTML = '';
+        return;
+      }
       const core = rows.filter(w => w.n >= 5);
       const avg = (k) => {
         const xs = core.map(w => w[k]).filter(v => v != null);
@@ -920,7 +1022,8 @@
     }
 
     function renderLocTable() {
-      document.querySelector('#locTable tbody').innerHTML = LOCATIONS.map(l => `
+      const locs = filteredLocations();
+      document.querySelector('#locTable tbody').innerHTML = locs.length ? locs.map(l => `
         <tr>
           <td><strong>${l.center}</strong></td>
           <td>${l.n}</td>
@@ -931,7 +1034,7 @@
           <td>${l.wfh}%</td>
           <td>${l.wfo}%</td>
           <td style="color:var(--muted)">${l.concern}</td>
-        </tr>`).join('');
+        </tr>`).join('') : '<tr><td colspan="9" style="color:var(--muted)">No locations for selected Month/Year.</td></tr>';
     }
 
     function renderFocus() {
@@ -1005,7 +1108,7 @@
       });
 
       // Location radar — pick top 5 by volume
-      const locs = [...LOCATIONS].sort((a,b) => b.n - a.n).slice(0, 5);
+      const locs = [...filteredLocations()].sort((a,b) => b.n - a.n).slice(0, 5);
       destroyChart('locRadar');
       charts.locRadar = new Chart(document.getElementById('chartLocRadar'), {
         type: 'radar',
@@ -1102,16 +1205,17 @@
       });
 
       // Loc grouped bars
+      const locData = filteredLocations();
       destroyChart('locBars');
       charts.locBars = new Chart(document.getElementById('chartLocBars'), {
         type: 'bar',
         data: {
-          labels: LOCATIONS.map(l => l.center),
+          labels: locData.map(l => l.center),
           datasets: [
-            { label: 'Lead', data: LOCATIONS.map(l => l.lead), backgroundColor: '#5b8cffaa' },
-            { label: 'Job', data: LOCATIONS.map(l => l.job), backgroundColor: '#22d3eeaa' },
-            { label: 'Tool', data: LOCATIONS.map(l => l.tool), backgroundColor: '#f59e0baa' },
-            { label: 'L&D', data: LOCATIONS.map(l => l.ld), backgroundColor: '#a78bfaaa' }
+            { label: 'Lead', data: locData.map(l => l.lead), backgroundColor: '#5b8cffaa' },
+            { label: 'Job', data: locData.map(l => l.job), backgroundColor: '#22d3eeaa' },
+            { label: 'Tool', data: locData.map(l => l.tool), backgroundColor: '#f59e0baa' },
+            { label: 'L&D', data: locData.map(l => l.ld), backgroundColor: '#a78bfaaa' }
           ]
         },
         options: {
@@ -1166,7 +1270,7 @@
       });
 
       // Workflow overview (bubble-like via bar of volume + lead)
-      const wfMain = WORKFLOWS.filter(w => w.n >= 2).sort((a,b) => b.n - a.n);
+      const wfMain = filteredWorkflows().filter(w => w.n >= 2).sort((a,b) => b.n - a.n);
       const ovEl = document.getElementById('chartWfOverview');
       if (ovEl) {
         destroyChart('wfOverview');
@@ -1202,7 +1306,7 @@
       // Workflow grouped bars
       const wb = document.getElementById('chartWfBars');
       if (wb) {
-        const wfs = WORKFLOWS.filter(w => w.n >= 5);
+        const wfs = filteredWorkflows().filter(w => w.n >= 5);
         destroyChart('wfBars');
         charts.wfBars = new Chart(wb, {
           type: 'bar',
@@ -1228,13 +1332,14 @@
 
       const wv = document.getElementById('chartWfVolume');
       if (wv) {
+        const wAll = filteredWorkflows();
         destroyChart('wfVolume');
         charts.wfVolume = new Chart(wv, {
           type: 'doughnut',
           data: {
-            labels: WORKFLOWS.map(w => w.workflow),
+            labels: wAll.map(w => w.workflow),
             datasets: [{
-              data: WORKFLOWS.map(w => w.n),
+              data: wAll.map(w => w.n),
               backgroundColor: ['#5b8cff','#22d3ee','#a78bfa','#22c55e','#f59e0b','#ef4444','#94a3b8','#f472b6']
             }]
           },
@@ -1249,7 +1354,7 @@
       if (wt) {
         const themeKeys = ['tool_lag_crash', 'camera_ui', 'ld_training', 'equal_treatment', 'shift_wlb', 'wfh_policy', 'client_qc'];
         const labels = ['Lag/crash', 'Camera/UI', 'L&D', 'Equal treat.', 'Shift/WLB', 'WFH policy', 'Client QC'];
-        const big = WORKFLOWS.filter(w => w.n >= 5);
+        const big = filteredWorkflows().filter(w => w.n >= 5);
         destroyChart('wfThemes');
         charts.wfThemes = new Chart(wt, {
           type: 'bar',
@@ -1277,8 +1382,48 @@
     }
 
     function refresh() {
+      updateBrandSub();
+      renderKpis();
       renderTlTable();
+      renderWorkflow();
+      renderLocTable();
       buildCharts();
+    }
+
+    function syncMonthOptionsFromYear() {
+      const yearSel = document.getElementById('filterYear');
+      const monthSel = document.getElementById('filterMonth');
+      const mySel = document.getElementById('filterMonthYear');
+      const y = yearSel.value;
+      const prevMonth = monthSel.value;
+      const prevMy = mySel.value;
+
+      const months = [...new Set(
+        PERIODS.filter(p => y === 'all' || String(p.year) === y).map(p => p.month)
+      )].sort((a, b) => a - b);
+
+      monthSel.innerHTML = '<option value="all">All months</option>';
+      months.forEach(m => {
+        const o = document.createElement('option');
+        o.value = String(m);
+        o.textContent = MONTH_NAMES[m] || m;
+        monthSel.appendChild(o);
+      });
+      if ([...monthSel.options].some(o => o.value === prevMonth)) monthSel.value = prevMonth;
+
+      const mys = PERIODS.filter(p => {
+        if (y !== 'all' && String(p.year) !== y) return false;
+        if (monthSel.value !== 'all' && String(p.month) !== monthSel.value) return false;
+        return true;
+      });
+      mySel.innerHTML = '<option value="all">All periods</option>';
+      mys.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.monthYear;
+        o.textContent = p.monthYear;
+        mySel.appendChild(o);
+      });
+      if ([...mySel.options].some(o => o.value === prevMy)) mySel.value = prevMy;
     }
 
     // Tabs
@@ -1294,6 +1439,37 @@
     });
 
     // Filters
+    document.getElementById('filterYear').addEventListener('change', () => {
+      syncMonthOptionsFromYear();
+      refresh();
+    });
+    document.getElementById('filterMonth').addEventListener('change', () => {
+      // Keep Month-Year in sync when month picked
+      const y = document.getElementById('filterYear').value;
+      const m = document.getElementById('filterMonth').value;
+      const my = document.getElementById('filterMonthYear');
+      syncMonthOptionsFromYear();
+      if (y !== 'all' && m !== 'all') {
+        const label = toMonthYear(m, y);
+        if ([...my.options].some(o => o.value === label)) my.value = label;
+      } else {
+        my.value = 'all';
+      }
+      refresh();
+    });
+    document.getElementById('filterMonthYear').addEventListener('change', () => {
+      const my = document.getElementById('filterMonthYear').value;
+      if (my !== 'all') {
+        const p = PERIODS.find(x => x.monthYear === my);
+        if (p) {
+          document.getElementById('filterYear').value = String(p.year);
+          syncMonthOptionsFromYear();
+          document.getElementById('filterMonth').value = String(p.month);
+          document.getElementById('filterMonthYear').value = my;
+        }
+      }
+      refresh();
+    });
     document.getElementById('filterCenter').addEventListener('change', refresh);
     document.getElementById('filterWorkflow').addEventListener('change', refresh);
     document.getElementById('filterFlag').addEventListener('change', refresh);
@@ -1310,7 +1486,23 @@
       });
     });
 
-    // Init center + workflow filters
+    // Init period + center + workflow filters
+    const yearSel = document.getElementById('filterYear');
+    [...new Set(PERIODS.map(p => p.year))].sort().forEach(y => {
+      const o = document.createElement('option');
+      o.value = String(y); o.textContent = String(y);
+      yearSel.appendChild(o);
+    });
+    // Default to latest year/month if only one period exists
+    if (PERIODS.length === 1) {
+      yearSel.value = String(PERIODS[0].year);
+    }
+    syncMonthOptionsFromYear();
+    if (PERIODS.length === 1) {
+      document.getElementById('filterMonth').value = String(PERIODS[0].month);
+      document.getElementById('filterMonthYear').value = PERIODS[0].monthYear;
+    }
+
     const centers = [...new Set(LOCATIONS.map(l => l.center))].sort();
     const sel = document.getElementById('filterCenter');
     centers.forEach(c => {
@@ -1325,6 +1517,7 @@
       wfSel.appendChild(o);
     });
 
+    updateBrandSub();
     renderKpis();
     renderOverviewAlerts();
     renderTlTable();

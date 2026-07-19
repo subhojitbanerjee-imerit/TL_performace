@@ -33,6 +33,68 @@ function buildTlDashboard() {
   var colMode = findCol(['wfo/wfh', 'working mode', 'wfh']);
   var colJob = findCol(['overall job satisfaction', 'job satisfaction']);
   var colLd = findCol(['l&d', 'trainer supported', 'day to day doubts']);
+  // New period columns: Month, Year, Month-Year (exact header match preferred)
+  var colMonth = -1, colYear = -1, colMonthYear = -1;
+  for (var hi = 0; hi < hLower.length; hi++) {
+    if (hLower[hi] === 'month') colMonth = hi;
+    if (hLower[hi] === 'year') colYear = hi;
+    if (hLower[hi] === 'month-year' || hLower[hi] === 'month year' || hLower[hi] === 'month_year') colMonthYear = hi;
+  }
+  if (colMonth < 0) colMonth = findCol(['month']);
+  if (colYear < 0) colYear = findCol(['year']);
+  if (colMonthYear < 0) colMonthYear = findCol(['month-year', 'month year']);
+
+  var MONTH_NAMES = {
+    1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June',
+    7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December'
+  };
+
+  function parseMonth(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    if (typeof v === 'number' && !isNaN(v)) return Math.round(v);
+    var s = String(v).trim();
+    var n = Number(s);
+    if (!isNaN(n) && n >= 1 && n <= 12) return n;
+    var map = {
+      jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4,
+      may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9,
+      oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12
+    };
+    var key = s.toLowerCase();
+    return map[key] || null;
+  }
+
+  function parseYear(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    if (typeof v === 'number' && !isNaN(v)) return Math.round(v);
+    var n = Number(String(v).trim());
+    return (!isNaN(n) && n >= 2000 && n <= 2100) ? n : null;
+  }
+
+  function rowPeriod(row) {
+    var month = colMonth >= 0 ? parseMonth(row[colMonth]) : null;
+    var year = colYear >= 0 ? parseYear(row[colYear]) : null;
+    var my = colMonthYear >= 0 ? String(row[colMonthYear] || '').trim() : '';
+    if (!my && month && year) my = (MONTH_NAMES[month] || month) + '-' + year;
+    // Fallback from Timestamp (col 0 often)
+    if ((!month || !year) && row[0]) {
+      var d = row[0];
+      if (Object.prototype.toString.call(d) === '[object Date]' && !isNaN(d)) {
+        if (!month) month = d.getMonth() + 1;
+        if (!year) year = d.getFullYear();
+        if (!my) my = (MONTH_NAMES[month] || month) + '-' + year;
+      } else {
+        var m = String(d).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+        if (m) {
+          // assume M/D/YYYY
+          if (!month) month = Number(m[1]);
+          if (!year) year = Number(m[3]);
+          if (!my) my = (MONTH_NAMES[month] || month) + '-' + year;
+        }
+      }
+    }
+    return { month: month, year: year, monthYear: my };
+  }
 
   // Lead rating columns: short Likert items about "my lead"
   var leadCols = [];
@@ -72,12 +134,14 @@ function buildTlDashboard() {
 
   var byLead = {};
   var byLoc = {};
+  var byPeriod = {};
 
   for (var r = 1; r < values.length; r++) {
     var row = values[r];
     var lead = colLead >= 0 ? String(row[colLead] || '').trim() : '';
     var center = colCenter >= 0 ? String(row[colCenter] || '').trim() : '';
     var mode = colMode >= 0 ? String(row[colMode] || '').trim().toUpperCase() : '';
+    var period = rowPeriod(row);
     if (!lead) continue;
 
     var leadScores = leadCols.map(function (c) { return num(row[c]); });
@@ -87,8 +151,14 @@ function buildTlDashboard() {
     var leadAvg = avg(leadScores);
     var toolAvg = avg(toolScores);
 
-    if (!byLead[lead]) byLead[lead] = { n: 0, lead: [], job: [], tool: [], ld: [], centers: {}, wfh: 0 };
-    var L = byLead[lead];
+    // Composite keys include Month-Year so filters can be built from sheet
+    var periodKey = period.monthYear || ((period.year || '') + '-' + (period.month || '')) || 'Unknown';
+    var leadKey = lead + ' || ' + periodKey;
+    if (!byLead[leadKey]) byLead[leadKey] = {
+      name: lead, n: 0, lead: [], job: [], tool: [], ld: [], centers: {}, wfh: 0,
+      year: period.year, month: period.month, monthYear: periodKey
+    };
+    var L = byLead[leadKey];
     L.n++;
     if (leadAvg !== null) L.lead.push(leadAvg);
     if (job !== null) L.job.push(job);
@@ -97,8 +167,11 @@ function buildTlDashboard() {
     if (center) L.centers[center] = (L.centers[center] || 0) + 1;
     if (mode.indexOf('WFH') !== -1) L.wfh++;
 
-    var locKey = center || 'Unknown';
-    if (!byLoc[locKey]) byLoc[locKey] = { n: 0, lead: [], job: [], tool: [], ld: [], wfh: 0 };
+    var locKey = (center || 'Unknown') + ' || ' + periodKey;
+    if (!byLoc[locKey]) byLoc[locKey] = {
+      name: center || 'Unknown', n: 0, lead: [], job: [], tool: [], ld: [], wfh: 0,
+      year: period.year, month: period.month, monthYear: periodKey
+    };
     var C = byLoc[locKey];
     C.n++;
     if (leadAvg !== null) C.lead.push(leadAvg);
@@ -106,6 +179,16 @@ function buildTlDashboard() {
     if (toolAvg !== null) C.tool.push(toolAvg);
     if (ld !== null) C.ld.push(ld);
     if (mode.indexOf('WFH') !== -1) C.wfh++;
+
+    if (!byPeriod[periodKey]) byPeriod[periodKey] = {
+      n: 0, lead: [], job: [], tool: [], ld: [], year: period.year, month: period.month, monthYear: periodKey
+    };
+    var P = byPeriod[periodKey];
+    P.n++;
+    if (leadAvg !== null) P.lead.push(leadAvg);
+    if (job !== null) P.job.push(job);
+    if (toolAvg !== null) P.tool.push(toolAvg);
+    if (ld !== null) P.ld.push(ld);
   }
 
   function flag(leadScore, n) {
@@ -115,41 +198,46 @@ function buildTlDashboard() {
     return 'OK';
   }
 
-  // Write TL scorecard
+  // Write TL scorecard (with Month / Year / Month-Year — no WFH %)
   var tlSheet = ss.getSheetByName('TL_Scorecard') || ss.insertSheet('TL_Scorecard');
   tlSheet.clear();
-  var tlOut = [['Lead', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D', 'Centers', 'WFH %', 'Flag']];
+  var tlOut = [['Lead', 'Year', 'Month', 'Month-Year', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D', 'Centers', 'Flag']];
   Object.keys(byLead).sort(function (a, b) {
     return (avg(byLead[b].lead) || 0) - (avg(byLead[a].lead) || 0);
-  }).forEach(function (name) {
-    var x = byLead[name];
+  }).forEach(function (key) {
+    var x = byLead[key];
     var ls = avg(x.lead);
     var centers = Object.keys(x.centers).join(', ');
     tlOut.push([
-      name,
+      x.name || key,
+      x.year || '',
+      x.month || '',
+      x.monthYear || '',
       x.n,
       ls !== null ? Math.round(ls * 100) / 100 : '',
       avg(x.job) !== null ? Math.round(avg(x.job) * 100) / 100 : '',
       avg(x.tool) !== null ? Math.round(avg(x.tool) * 100) / 100 : '',
       avg(x.ld) !== null ? Math.round(avg(x.ld) * 100) / 100 : '',
       centers,
-      Math.round((x.wfh / x.n) * 1000) / 10,
       flag(ls, x.n)
     ]);
   });
   tlSheet.getRange(1, 1, tlOut.length, tlOut[0].length).setValues(tlOut);
   tlSheet.setFrozenRows(1);
-  tlSheet.autoResizeColumns(1, 9);
+  tlSheet.autoResizeColumns(1, 11);
 
   // Write Location scorecard
   var locSheet = ss.getSheetByName('Location_Scorecard') || ss.insertSheet('Location_Scorecard');
   locSheet.clear();
-  var locOut = [['Center', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D', 'WFH %', 'WFO %']];
-  Object.keys(byLoc).sort().forEach(function (name) {
-    var x = byLoc[name];
+  var locOut = [['Center', 'Year', 'Month', 'Month-Year', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D', 'WFH %', 'WFO %']];
+  Object.keys(byLoc).sort().forEach(function (key) {
+    var x = byLoc[key];
     var wfhPct = Math.round((x.wfh / x.n) * 1000) / 10;
     locOut.push([
-      name,
+      x.name || key,
+      x.year || '',
+      x.month || '',
+      x.monthYear || '',
       x.n,
       avg(x.lead) !== null ? Math.round(avg(x.lead) * 100) / 100 : '',
       avg(x.job) !== null ? Math.round(avg(x.job) * 100) / 100 : '',
@@ -161,7 +249,28 @@ function buildTlDashboard() {
   });
   locSheet.getRange(1, 1, locOut.length, locOut[0].length).setValues(locOut);
   locSheet.setFrozenRows(1);
-  locSheet.autoResizeColumns(1, 8);
+  locSheet.autoResizeColumns(1, 11);
+
+  // Period summary (for dashboard Year / Month filters)
+  var perSheet = ss.getSheetByName('Period_Scorecard') || ss.insertSheet('Period_Scorecard');
+  perSheet.clear();
+  var perOut = [['Month-Year', 'Year', 'Month', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D']];
+  Object.keys(byPeriod).sort().forEach(function (key) {
+    var x = byPeriod[key];
+    perOut.push([
+      x.monthYear || key,
+      x.year || '',
+      x.month || '',
+      x.n,
+      avg(x.lead) !== null ? Math.round(avg(x.lead) * 100) / 100 : '',
+      avg(x.job) !== null ? Math.round(avg(x.job) * 100) / 100 : '',
+      avg(x.tool) !== null ? Math.round(avg(x.tool) * 100) / 100 : '',
+      avg(x.ld) !== null ? Math.round(avg(x.ld) * 100) / 100 : ''
+    ]);
+  });
+  perSheet.getRange(1, 1, perOut.length, perOut[0].length).setValues(perOut);
+  perSheet.setFrozenRows(1);
+  perSheet.autoResizeColumns(1, 8);
 
   // Workflow scorecard
   var colWf = findCol(['workflows you work', 'select the workflows', 'workflow']);
@@ -183,9 +292,15 @@ function buildTlDashboard() {
       var mode2 = colMode >= 0 ? String(row2[colMode] || '').trim().toUpperCase() : '';
       var center2 = colCenter >= 0 ? String(row2[colCenter] || '').trim() : '';
 
+      var period2 = rowPeriod(row2);
+      var periodKey2 = period2.monthYear || ((period2.year || '') + '-' + (period2.month || '')) || 'Unknown';
       parts.forEach(function (wfName) {
-        if (!byWf[wfName]) byWf[wfName] = { n: 0, lead: [], job: [], tool: [], ld: [], wfh: 0, centers: {} };
-        var W = byWf[wfName];
+        var wfKey = wfName + ' || ' + periodKey2;
+        if (!byWf[wfKey]) byWf[wfKey] = {
+          name: wfName, n: 0, lead: [], job: [], tool: [], ld: [], wfh: 0, centers: {},
+          year: period2.year, month: period2.month, monthYear: periodKey2
+        };
+        var W = byWf[wfKey];
         W.n++;
         if (leadAvg2 !== null) W.lead.push(leadAvg2);
         if (job2 !== null) W.job.push(job2);
@@ -198,11 +313,11 @@ function buildTlDashboard() {
 
     var wfSheet = ss.getSheetByName('Workflow_Scorecard') || ss.insertSheet('Workflow_Scorecard');
     wfSheet.clear();
-    var wfOut = [['Workflow', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D', 'WFH %', 'Top Centers', 'Status']];
+    var wfOut = [['Workflow', 'Year', 'Month', 'Month-Year', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D', 'WFH %', 'Top Centers', 'Status']];
     Object.keys(byWf).sort(function (a, b) {
       return byWf[b].n - byWf[a].n;
-    }).forEach(function (name) {
-      var x = byWf[name];
+    }).forEach(function (key) {
+      var x = byWf[key];
       var ls = avg(x.lead);
       var centers = Object.keys(x.centers).sort(function (a, b) {
         return x.centers[b] - x.centers[a];
@@ -213,7 +328,10 @@ function buildTlDashboard() {
       if (ls !== null && ls < 3.5) st = 'RISK';
       if (x.n < 5) st = 'LOW N';
       wfOut.push([
-        name,
+        x.name || key,
+        x.year || '',
+        x.month || '',
+        x.monthYear || '',
         x.n,
         ls !== null ? Math.round(ls * 100) / 100 : '',
         avg(x.job) !== null ? Math.round(avg(x.job) * 100) / 100 : '',
@@ -226,8 +344,8 @@ function buildTlDashboard() {
     });
     wfSheet.getRange(1, 1, wfOut.length, wfOut[0].length).setValues(wfOut);
     wfSheet.setFrozenRows(1);
-    wfSheet.autoResizeColumns(1, 9);
+    wfSheet.autoResizeColumns(1, 12);
   }
 
-  SpreadsheetApp.getUi().alert('Dashboard tabs refreshed: TL_Scorecard, Location_Scorecard, Workflow_Scorecard');
+  SpreadsheetApp.getUi().alert('Dashboard tabs refreshed: TL_Scorecard, Location_Scorecard, Workflow_Scorecard, Period_Scorecard');
 }
