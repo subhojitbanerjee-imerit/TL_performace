@@ -1,22 +1,17 @@
 /**
  * TL Performance Dashboard — standalone Apps Script
  *
- * Deploy as a standalone project (script.google.com → New project).
- * Does NOT require binding to the spreadsheet.
+ * Deploy as Web App (Execute as: Me · Who has access: Anyone in org / Anyone):
+ *   Deploy → New deployment → Type: Web app
+ *   Entry point: doGet  (required for Web App URL)
+ *
+ * Or run buildTlDashboard from the editor.
  *
  * Spreadsheet:
  *   https://docs.google.com/spreadsheets/d/1D_oYej7qjYxgWQ8XtHKceb6fEVJUlNZzLiOX2RQVb0k/
+ * Source tab gid: 1126318129
  *
- * Source tab gid (responses / consolidated data):
- *   1126318129
- *
- * Run: buildTlDashboard
  * Creates/refreshes: TL_Scorecard, Location_Scorecard, Workflow_Scorecard, Period_Scorecard
- *
- * Requirements:
- *   - This script's Google account must have at least Viewer (Editor preferred) on the sheet
- *   - Enable Google Sheets API advanced service only if needed (not required for openById)
- *   - Header matching is fuzzy (case-insensitive contains)
  */
 
 /** Target spreadsheet (standalone — do not rely on getActive). */
@@ -68,6 +63,119 @@ function notify_(message) {
   }
 }
 
+/**
+ * Web App entry point — required when deploying as Web App.
+ * URL params:
+ *   ?action=rebuild  — rebuild scorecards then show result page
+ *   (default)        — home page with Rebuild button
+ */
+function doGet(e) {
+  e = e || { parameter: {} };
+  var action = (e.parameter && e.parameter.action) || '';
+
+  if (action === 'rebuild') {
+    try {
+      var result = buildTlDashboard();
+      return htmlPage_('Scorecards rebuilt', rebuildSuccessHtml_(result), true);
+    } catch (err) {
+      return htmlPage_('Rebuild failed', '<p class="err">' + escapeHtml_(String(err.message || err)) + '</p>' +
+        '<p><a href="?">← Back</a></p>', false);
+    }
+  }
+
+  // Default landing page
+  return htmlPage_('TL Performance Dashboard', homeHtml_(), true);
+}
+
+/**
+ * Optional JSON API: POST or GET ?action=api&mode=rebuild
+ */
+function doPost(e) {
+  try {
+    var result = buildTlDashboard();
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, result: result }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: String(err.message || err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function homeHtml_() {
+  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit';
+  return '' +
+    '<h1>TL Performance Dashboard</h1>' +
+    '<p class="muted">Standalone Apps Script · scorecards written into your Google Sheet</p>' +
+    '<div class="card">' +
+    '<p><strong>Spreadsheet</strong><br><a href="' + sheetUrl + '" target="_blank" rel="noopener">Open Google Sheet</a></p>' +
+    '<p><strong>Source tab gid</strong> ' + SOURCE_SHEET_GID + '</p>' +
+    '<p>Tabs created/updated: <code>TL_Scorecard</code>, <code>Location_Scorecard</code>, ' +
+    '<code>Workflow_Scorecard</code>, <code>Period_Scorecard</code></p>' +
+    '<p class="actions">' +
+    '<a class="btn" href="?action=rebuild">Rebuild scorecards now</a>' +
+    '</p>' +
+    '</div>' +
+    '<p class="muted">After rebuild, filter by Year / Month / Month-Year on the scorecard tabs, ' +
+    'or open the HTML dashboard from the GitHub repo.</p>';
+}
+
+function rebuildSuccessHtml_(result) {
+  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit';
+  result = result || {};
+  return '' +
+    '<h1>Scorecards rebuilt</h1>' +
+    '<div class="card ok">' +
+    '<p><strong>Source:</strong> ' + escapeHtml_(result.sourceName || '') +
+    ' (gid ' + escapeHtml_(String(result.sourceGid || '')) + ')</p>' +
+    '<p><strong>Rows processed:</strong> ' + (result.rows || 0) + '</p>' +
+    '<p><strong>Leads:</strong> ' + (result.leads || 0) +
+    ' · <strong>Locations:</strong> ' + (result.locations || 0) +
+    ' · <strong>Workflows:</strong> ' + (result.workflows || 0) +
+    ' · <strong>Periods:</strong> ' + (result.periods || 0) + '</p>' +
+    '<p class="actions">' +
+    '<a class="btn" href="' + sheetUrl + '" target="_blank" rel="noopener">Open spreadsheet</a> ' +
+    '<a class="btn secondary" href="?">Home</a> ' +
+    '<a class="btn secondary" href="?action=rebuild">Rebuild again</a>' +
+    '</p>' +
+    '</div>';
+}
+
+function htmlPage_(title, bodyHtml, ok) {
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>' + escapeHtml_(title) + '</title>' +
+    '<style>' +
+    'body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#0b1220;color:#e8eefc;margin:0;padding:24px;line-height:1.5}' +
+    'h1{font-size:1.4rem;margin:0 0 8px}' +
+    '.muted{color:#93a0b8;font-size:.9rem}' +
+    '.card{background:#121a2b;border:1px solid #243049;border-radius:12px;padding:18px;max-width:640px;margin:16px 0}' +
+    '.card.ok{border-color:#22c55e55}' +
+    '.err{color:#fca5a5}' +
+    'a{color:#93c5fd}' +
+    '.btn{display:inline-block;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff!important;text-decoration:none;' +
+    'padding:10px 16px;border-radius:10px;font-weight:600;margin:4px 4px 4px 0}' +
+    '.btn.secondary{background:#1e293b;border:1px solid #334155}' +
+    'code{background:#1e293b;padding:2px 6px;border-radius:4px;font-size:.85rem}' +
+    '.actions{margin-top:14px}' +
+    '</style></head><body>' + bodyHtml + '</body></html>';
+  return HtmlService.createHtmlOutput(html)
+    .setTitle(title)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function escapeHtml_(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Build scorecard tabs. Returns a summary object (used by doGet / doPost).
+ */
 function buildTlDashboard() {
   var ss = getTargetSpreadsheet_();
   var sh = getSourceSheet_(ss);
@@ -406,16 +514,30 @@ function buildTlDashboard() {
     wfSheet.autoResizeColumns(1, 12);
   }
 
+  var summary = {
+    ok: true,
+    spreadsheetId: SPREADSHEET_ID,
+    sourceName: sh.getName(),
+    sourceGid: sh.getSheetId(),
+    rows: values.length - 1,
+    leads: Object.keys(byLead).length,
+    locations: Object.keys(byLoc).length,
+    workflows: Object.keys(byWf || {}).length,
+    periods: Object.keys(byPeriod).length
+  };
+
   notify_(
     'Dashboard refreshed on spreadsheet ' + SPREADSHEET_ID +
     '\nSource: ' + sh.getName() + ' (gid ' + sh.getSheetId() + ')' +
     '\nTabs: TL_Scorecard, Location_Scorecard, Workflow_Scorecard, Period_Scorecard'
   );
+
+  return summary;
 }
 
 /**
  * Optional menu when script is later bound, or for testing from container.
- * Standalone: run buildTlDashboard from the editor Run menu.
+ * Standalone: run buildTlDashboard from the editor Run menu, or open the Web App URL (doGet).
  */
 function onOpen() {
   try {

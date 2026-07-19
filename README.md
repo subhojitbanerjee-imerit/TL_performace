@@ -73,9 +73,17 @@ SOURCE_SHEET_GID = 1126318129
 
 1. [script.google.com](https://script.google.com) → New project  
 2. Paste `Code.gs`  
-3. Run **`buildTlDashboard`** (authorize; need Editor on the sheet)  
+3. **Deploy as Web App** (needed for URL access):  
+   - Deploy → New deployment → Type: **Web app**  
+   - Execute as: **Me**  
+   - Who has access: your org / Anyone  
+   - Entry point is **`doGet`** (included in Code.gs)  
+4. Open the Web App URL → click **Rebuild scorecards now**  
+5. Or run **`buildTlDashboard`** from the editor Run menu  
 
-Creates/refreshes **TL_Scorecard**, **Location_Scorecard**, **Workflow_Scorecard**, **Period_Scorecard** (with Year / Month / Month-Year).
+Creates/refreshes **TL_Scorecard**, **Location_Scorecard**, **Workflow_Scorecard**, **Period_Scorecard** (with Year / Month / Month-Year).  
+
+If you see **“Script function not found: doGet”**, the project still has an old version without `doGet` — paste the latest `Code.gs` and **Deploy → Manage deployments → Edit → New version → Deploy**.
 
 ---
 
