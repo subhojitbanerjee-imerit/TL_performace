@@ -212,8 +212,13 @@
       <div class="grid-2">
         <div class="card">
           <h2>Lead score distribution by TL</h2>
-          <p class="hint">Average of 9 lead evaluation items (1–5). Bar color by performance flag.</p>
-          <div class="chart-wrap"><canvas id="chartTlBars"></canvas></div>
+          <p class="hint">Average of 9 lead evaluation items (1–5). Sorted high → low. Green = TOP · Blue = OK · Red = BOTTOM. Respects Year/Month filters.</p>
+          <div class="pill-row" style="margin-bottom:10px">
+            <span class="badge top">TOP ≥4.5 & n≥5</span>
+            <span class="badge ok">OK</span>
+            <span class="badge bottom">BOTTOM / at risk</span>
+          </div>
+          <div class="chart-wrap" id="chartTlBarsWrap" style="height:420px"><canvas id="chartTlBars"></canvas></div>
         </div>
         <div class="card">
           <h2>Location health radar</h2>
@@ -1083,26 +1088,76 @@
     function buildCharts() {
       const tls = filteredTls().filter(t => t.n >= 2 || t.flag === 'BOTTOM');
       // TL bars
+      // Lead score distribution by TL — horizontal bars, sorted by score
+      const tlDist = [...tls].sort((a, b) => b.lead - a.lead);
+      const wrap = document.getElementById('chartTlBarsWrap');
+      if (wrap) {
+        // Grow height with TL count so names stay readable
+        const h = Math.max(320, Math.min(900, 28 * tlDist.length + 40));
+        wrap.style.height = h + 'px';
+      }
       destroyChart('tlBars');
       charts.tlBars = new Chart(document.getElementById('chartTlBars'), {
         type: 'bar',
         data: {
-          labels: tls.map(t => t.name.split(' ')[0] + (t.name.includes(' ') ? '…' : '')),
+          labels: tlDist.map(t => {
+            // Keep first + last name when long
+            const parts = t.name.trim().split(/\s+/);
+            if (parts.length <= 2) return t.name;
+            return parts[0] + ' ' + parts[parts.length - 1];
+          }),
           datasets: [{
             label: 'Lead score',
-            data: tls.map(t => t.lead),
-            backgroundColor: tls.map(t => t.flag === 'BOTTOM' ? '#ef4444aa' : t.flag === 'TOP' ? '#22c55eaa' : '#5b8cffaa'),
-            borderRadius: 6
+            data: tlDist.map(t => t.lead),
+            backgroundColor: tlDist.map(t =>
+              t.flag === 'BOTTOM' ? 'rgba(239,68,68,0.75)' :
+              t.flag === 'TOP' ? 'rgba(34,197,94,0.75)' :
+              'rgba(91,140,255,0.75)'
+            ),
+            borderColor: tlDist.map(t =>
+              t.flag === 'BOTTOM' ? '#ef4444' :
+              t.flag === 'TOP' ? '#22c55e' :
+              '#5b8cff'
+            ),
+            borderWidth: 1,
+            borderRadius: 5,
+            barPercentage: 0.85,
+            categoryPercentage: 0.9
           }]
         },
         options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: {
-            callbacks: { title: (items) => tls[items[0].dataIndex].name }
-          }},
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => tlDist[items[0].dataIndex].name,
+                label: (ctx) => {
+                  const t = tlDist[ctx.dataIndex];
+                  return [
+                    'Lead score: ' + t.lead.toFixed(2) + ' / 5',
+                    'Responses: ' + t.n,
+                    'Job sat: ' + t.job.toFixed(2) + ' · Tool: ' + t.tool.toFixed(2) + ' · L&D: ' + t.ld.toFixed(2),
+                    'Flag: ' + t.flag + (t.centers ? ' · ' + t.centers : '')
+                  ];
+                }
+              }
+            }
+          },
           scales: {
-            y: { min: 0, max: 5, ticks: { color: '#93a0b8' }, grid: { color: '#243049' } },
-            x: { ticks: { color: '#93a0b8', maxRotation: 60, minRotation: 40, font: { size: 9 } }, grid: { display: false } }
+            x: {
+              min: 0,
+              max: 5,
+              ticks: { color: '#93a0b8', stepSize: 1 },
+              grid: { color: '#243049' },
+              title: { display: true, text: 'Lead score (1–5)', color: '#93a0b8', font: { size: 11 } }
+            },
+            y: {
+              ticks: { color: '#e8eefc', font: { size: 11 } },
+              grid: { display: false }
+            }
           }
         }
       });
