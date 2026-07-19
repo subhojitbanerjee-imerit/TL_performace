@@ -16,12 +16,23 @@ Open **[index.html](./index.html)** in a browser (or enable GitHub Pages on this
 
 ### Dashboard tabs
 
-1. **Overview** — KPIs, charts, priority alerts  
-2. **TL-wise Performance** — sortable scorecard, volume vs score  
-3. **Focus Areas for TLs** — coaching cards for BOTTOM / WATCH leads  
-4. **Location Issues** — center-level risk (SLT, Pune, Hyderabad, …)  
-5. **Themes & Verbatims** — open-text themes and critical quotes  
-6. **Action Plan** — immediate / short / medium priorities  
+1. **Overview** — KPIs, charts, priority alerts, workflow health  
+2. **TL-wise Performance** — sortable scorecard, volume vs score (filter by center **or workflow**)  
+3. **Workflow Analysis** — scorecard by project workflow, theme heat, risk cards, deep-dives  
+4. **Focus Areas for TLs** — coaching cards for BOTTOM / WATCH leads  
+5. **Location Issues** — center-level risk (SLT, Pune, Hyderabad, …)  
+6. **Themes & Verbatims** — open-text themes and critical quotes  
+7. **Action Plan** — immediate / short / medium priorities  
+
+### Workflow-wise highlights
+
+| Workflow | Signal |
+|----------|--------|
+| **Sim Behaviour** | Highest volume — tool lag, WFH policy (Pune), Hyderabad stability |
+| **LiDAR 3D Cuboid** | Best scores — invest in 3D/cuboid UX |
+| **Sim Collision** | Soft tool score — measuring tools, camera/zoom |
+| **Nuro Context mapping** | Lag/hang + client update broadcast gaps |
+| **GEN-AI (LLM)** | Risk — leadership culture cases, triage tool bugs |
 
 ### Data notes
 
@@ -41,7 +52,7 @@ Source sheet (private):
 3. Paste `Code.gs`  
 4. Run `buildTlDashboard`  
 
-This creates/refreshes **TL_Scorecard** and **Location_Scorecard** tabs.
+This creates/refreshes **TL_Scorecard**, **Location_Scorecard**, and **Workflow_Scorecard** tabs.
 
 ---
 

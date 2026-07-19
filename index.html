@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>iMerit Survey Dashboard — TL · Location · Focus Areas</title>
+  <title>iMerit Survey Dashboard — TL · Workflow · Location</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -166,11 +166,14 @@
   <header>
     <div class="brand">
       <h1>iMerit Employee Feedback Dashboard</h1>
-      <span>Source: responses_consolidated · June 2026 · 274 responses · TL · Location · Focus Areas</span>
+      <span>Source: responses_consolidated · June 2026 · 274 responses · TL · Workflow · Location · Focus Areas</span>
     </div>
     <div class="controls">
       <select id="filterCenter" title="Filter by center">
         <option value="all">All centers</option>
+      </select>
+      <select id="filterWorkflow" title="Filter by workflow">
+        <option value="all">All workflows</option>
       </select>
       <select id="filterFlag" title="Filter by performance">
         <option value="all">All TLs</option>
@@ -187,6 +190,7 @@
     <div class="tabs" id="tabs">
       <div class="tab active" data-tab="overview">Overview</div>
       <div class="tab" data-tab="tl">TL-wise Performance</div>
+      <div class="tab" data-tab="workflow">Workflow Analysis</div>
       <div class="tab" data-tab="focus">Focus Areas for TLs</div>
       <div class="tab" data-tab="location">Location Issues</div>
       <div class="tab" data-tab="themes">Themes & Verbatims</div>
@@ -218,6 +222,11 @@
           <h2>Where to focus first</h2>
           <div id="overviewAlerts"></div>
         </div>
+      </div>
+      <div class="card">
+        <h2>Workflow health (volume vs scores)</h2>
+        <p class="hint">Responses can count under multiple workflows if multi-selected. Click Workflow Analysis for full scorecard.</p>
+        <div class="chart-wrap"><canvas id="chartWfOverview"></canvas></div>
       </div>
     </section>
 
@@ -257,6 +266,65 @@
           <h2>Top vs bottom TLs (Lead score)</h2>
           <div class="chart-wrap"><canvas id="chartTopBottom"></canvas></div>
         </div>
+      </div>
+    </section>
+
+    <!-- WORKFLOW -->
+    <section class="section" id="tab-workflow">
+      <div class="kpi-grid" id="wfKpiGrid" style="grid-template-columns: repeat(4, 1fr);"></div>
+      <div class="card">
+        <h2>Workflow performance scorecard</h2>
+        <p class="hint">
+          Parsed from “Please select the workflows you work on”. Multi-select responses attribute to each listed workflow.
+          Lead/Job/Tool/L&amp;D are response-level averages within that workflow. Low sample (&lt;5) — interpret carefully.
+        </p>
+        <div class="table-scroll">
+          <table id="wfTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Workflow</th>
+                <th># Resp</th>
+                <th>Lead</th>
+                <th>Job Sat</th>
+                <th>Tool</th>
+                <th>L&amp;D</th>
+                <th>WFH %</th>
+                <th>Primary centers</th>
+                <th>Top TLs (by volume)</th>
+                <th>Status</th>
+                <th>Top issues / focus</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Scores by workflow</h2>
+          <p class="hint">Grouped Lead · Job · Tool · L&amp;D (1–5)</p>
+          <div class="chart-wrap"><canvas id="chartWfBars"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Response volume by workflow</h2>
+          <div class="chart-wrap"><canvas id="chartWfVolume"></canvas></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Theme heat by workflow</h2>
+          <p class="hint">Keyword mention counts within each workflow’s open text</p>
+          <div class="chart-wrap"><canvas id="chartWfThemes"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Workflow risk & opportunity cards</h2>
+          <div id="wfRisks"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Workflow deep-dive notes</h2>
+        <div class="focus-grid" id="wfDeepDive"></div>
       </div>
     </section>
 
@@ -426,6 +494,187 @@
       { center:'SLT', n:29, lead:3.98, job:3.79, tool:3.34, ld:3.48, wfh:58.6, wfo:41.4, concern:'Priority location — outliers (Rupsha, Pradipta, Sanglap). Lowest tool/L&D.' }
     ];
 
+    // Workflow-wise analysis (multi-select rows counted under each selected workflow)
+    const WORKFLOWS = [
+      {
+        workflow: 'Sim Behaviour', n: 190, lead: 4.34, job: 4.32, tool: 3.99, ld: 4.30,
+        wfh: 28, wfo: 72,
+        centers: 'Pune, Hyderabad, BRP, SLT',
+        topLeads: 'Karpe Gayatri · Indrajit · Shweta Dash · Akshay · Aditee',
+        status: 'CORE',
+        focus: 'Tool lag/crashes (51), L&D refreshers, WFH fairness (Pune STQC), equal treatment outliers',
+        themes: { tool_lag_crash: 51, camera_ui: 22, ld_training: 33, equal_treatment: 17, shift_wlb: 11, client_qc: 8, wfh_policy: 5, salary: 5 },
+        deep: {
+          title: 'Sim Behaviour — dominant workflow',
+          points: [
+            'Largest share of survey (~70%+ of responses). Lead avg healthy (4.34) but tool sits ~4.0 with high lag volume.',
+            'Pune STQC WFH partiality is the loudest policy risk; repeated almost-template escalations.',
+            'Hyderabad volume under Karpe: crashes, occupancy, 9hr shift, leave fairness.',
+            'Strengths: many strong TLs (Indrajit, Shweta, Abhishek on related work) and positive L&D mentions.',
+            'Product backlog: next-task load, blinker View Mode, hard-break visibility, dashboard time accuracy.'
+          ]
+        }
+      },
+      {
+        workflow: 'Sim Collision', n: 32, lead: 4.26, job: 4.11, tool: 3.60, ld: 4.09,
+        wfh: 25, wfo: 75,
+        centers: 'Pune, Hyderabad, BRP',
+        topLeads: 'Abhishek Rajan Muniswami · Karpe Gayatri · Chirantan Baidya',
+        status: 'WATCH',
+        focus: 'Camera/measure/zoom UX (14), shift WLB (8), tool lag; measuring tools & fisheye switch',
+        themes: { camera_ui: 14, shift_wlb: 8, tool_lag_crash: 7, ld_training: 7, equal_treatment: 6 },
+        deep: {
+          title: 'Sim Collision — UX-sensitive',
+          points: [
+            'Tool score softer (~3.6). Heavy asks for measuring tools, zoom, clearer 2D/fisheye camera selector.',
+            'Abhishek rated very high as TL — scale his support model; keep product pressure on camera UX.',
+            'Shift/WLB (9hr, break length) appears with this cohort more than average.',
+            'Synthetic scenes / speed bump / measurement features requested for convenience-type tasks.'
+          ]
+        }
+      },
+      {
+        workflow: 'LiDAR 3D Cuboid', n: 25, lead: 4.72, job: 4.62, tool: 4.33, ld: 4.38,
+        wfh: 16, wfo: 84,
+        centers: 'Hyderabad, SLT, MBZ',
+        topLeads: 'Abdul Rasheed Shaik · Teegula Kavya Shree · Samsher Alam · Murtuza Taher',
+        status: 'TOP',
+        focus: 'Cuboid multi-side adjust, 3D tab view, LiDAR↔2D cursor sync, torso-box resize, persist track colors after crash',
+        themes: { camera_ui: 25, tool_lag_crash: 2, ld_training: 1 },
+        deep: {
+          title: 'LiDAR 3D Cuboid — highest satisfaction',
+          points: [
+            'Best lead/job/tool cluster (Lead ~4.7, Job ~4.6). Teegula & Abdul teams are TOP benchmarks.',
+            'Almost all open text is product enhancement, not people issues — invest engineering here for retention of high performers.',
+            'Key asks: one-key highlight object in LiDAR, simultaneous 3-view adjust, auto multi-side cuboid, better post-save completed-object find.',
+            'Hyderabad-heavy WFO footprint; keep hardware/VM quality high for 3D work.'
+          ]
+        }
+      },
+      {
+        workflow: 'Nuro Context mapping', n: 13, lead: 4.23, job: 4.20, tool: 3.50, ld: 4.00,
+        wfh: 10, wfo: 90,
+        centers: 'CBTR, SLT, MBZ',
+        topLeads: 'Edupalli Asritha Nayani · Sudip Sen · Arkajit · Shahbaz Rashid',
+        status: 'WATCH',
+        focus: 'Tool lag/hang (high share), broadcast client annotation updates to all production, multi-workflow learning asks',
+        themes: { tool_lag_crash: 7, client_qc: 4, camera_ui: 2, ld_training: 1 },
+        deep: {
+          title: 'Nuro Context mapping — tool + comms',
+          points: [
+            'Repeated “tool too lagging / hangs a lot” from CBTR production.',
+            'Strong ask: when client updates annotation rules, push same update to all production people at once.',
+            'People want to learn remaining workflows — career path opportunity.',
+            'Contains SLT outlier risk (Rupsha on related SLT mapping context) — separate leadership case from product issues.'
+          ]
+        }
+      },
+      {
+        workflow: 'GEN-AI (LLM)', n: 9, lead: 3.82, job: 3.90, tool: 3.40, ld: 3.80,
+        wfh: 45, wfo: 55,
+        centers: 'SLT, Pune',
+        topLeads: 'Debipriya Banerjee · Sanglap Kundu · (mixed GEN-AI leads)',
+        status: 'RISK',
+        focus: 'Leadership culture risk (trust, office pressure), triage tool task-count bugs, buddy/SME for subjective tasks',
+        themes: { equal_treatment: 2, wfh_policy: 1, ld_training: 1, salary: 1, shift_wlb: 1 },
+        deep: {
+          title: 'GEN-AI (LLM) — people risk hotspot',
+          points: [
+            'Lowest lead avg among workflows with n≥5. Includes severe verbatims (wifi distrust / toxic; office-obsessed culture).',
+            'Triage tool: task count not updating after submit — productivity tracking pain.',
+            'Subjective work needs clearer SME escalation and stick-to-guideline support vs client flip-flops.',
+            'HR/Ops case handling required; do not treat as average score noise.'
+          ]
+        }
+      },
+      {
+        workflow: 'Visual Similarity Search', n: 2, lead: 4.50, job: 4.00, tool: 4.00, ld: 4.00,
+        wfh: 50, wfo: 50,
+        centers: 'Pune, SLT',
+        topLeads: 'Shweta Dash · Rahuljeet Banerjee',
+        status: 'LOW N',
+        focus: 'Small sample — keep monitoring; no strong negative pattern yet',
+        themes: {},
+        deep: {
+          title: 'Visual Similarity Search — low sample',
+          points: [
+            'Only a few responses; scores look healthy but not statistically robust.',
+            'Often paired with Sim Behaviour under same TL (e.g. Shweta).'
+          ]
+        }
+      },
+      {
+        workflow: 'Audio Siren', n: 1, lead: 4.78, job: 4.00, tool: 4.00, ld: 4.00,
+        wfh: 0, wfo: 100,
+        centers: 'Hyderabad',
+        topLeads: 'Sritama Sarkar',
+        status: 'LOW N',
+        focus: 'Tiny sample; tool feature ask: active-state indicators (siren / pullover sign)',
+        themes: {},
+        deep: {
+          title: 'Audio Siren — feature nibble',
+          points: [
+            'Paired with Sim Behaviour for some operators.',
+            'Idea: show when emergency siren / pullover target becomes active (like existing siren flag).'
+          ]
+        }
+      },
+      {
+        workflow: 'Track Attribute', n: 1, lead: 5.00, job: 5.00, tool: 3.20, ld: 4.00,
+        wfh: 100, wfo: 0,
+        centers: 'SLT',
+        topLeads: 'Anupam Das',
+        status: 'LOW N',
+        focus: 'Single strong leadership note; tool mid — validate with more responses',
+        themes: {},
+        deep: {
+          title: 'Track Attribute — single response',
+          points: [
+            'Leadership/coordination praised; tool scores mid — need more data before workflow decisions.'
+          ]
+        }
+      }
+    ];
+
+    // TL → primary workflows (for filter)
+    const TL_WORKFLOWS = {
+      'Karpe Gayatri': ['Sim Behaviour', 'Sim Collision'],
+      'Indrajit Lalaso Patil': ['Sim Behaviour'],
+      'Shweta Dash': ['Sim Behaviour', 'Visual Similarity Search'],
+      'Akshay Prashant Umredkar': ['Sim Behaviour'],
+      'Abhishek Rajan Muniswami': ['Sim Collision'],
+      'Aditee Naskar': ['Sim Behaviour'],
+      'Swati Kishor Saledar': ['Sim Behaviour'],
+      'Abdul Rasheed Shaik': ['LiDAR 3D Cuboid'],
+      'Teegula Kavya Shree': ['LiDAR 3D Cuboid'],
+      'Debarati Bera': ['Sim Behaviour'],
+      'Sadiqa Khurshid': ['Sim Behaviour'],
+      'Edupalli Asritha Nayani': ['Nuro Context mapping'],
+      'Debipriya Banerjee': ['GEN-AI (LLM)', 'Sim Behaviour'],
+      'Anupam Das': ['Sim Behaviour', 'Sim Collision', 'Track Attribute'],
+      'Sneha Achyutananda Parida': ['Sim Behaviour'],
+      'Sarojini Mathan': ['Sim Behaviour'],
+      'Samsher Alam': ['LiDAR 3D Cuboid'],
+      'Sritama Sarkar': ['Sim Behaviour', 'Audio Siren'],
+      'Amit Kumar': ['Sim Behaviour', 'Nuro Context mapping'],
+      'Mayur Dnyaneshwar Nirgule': ['Sim Behaviour', 'Sim Collision'],
+      'Chirantan Baidya': ['Sim Collision'],
+      'Pradipta Das': ['Sim Behaviour'],
+      'Jenif Ahmed Molla': ['Sim Behaviour'],
+      'Amitabha Mondal': ['Sim Behaviour'],
+      'Sanglap Kundu': ['GEN-AI (LLM)'],
+      'Rupsha Chakraborty': ['Nuro Context mapping'],
+      'Rawoof': ['Sim Behaviour'],
+      'Bhupendar.k': ['Sim Behaviour'],
+      'Murtuza Taher': ['LiDAR 3D Cuboid'],
+      'Subham Mukhrjee': ['LiDAR 3D Cuboid'],
+      'Shahbaz Rashid': ['Nuro Context mapping'],
+      'Arkajit': ['Nuro Context mapping'],
+      'Rahuljeet Banerjee': ['Visual Similarity Search'],
+      'Samyak Rahul Ramteke': ['Sim Collision'],
+      'Sudip Sen': ['Nuro Context mapping']
+    };
+
     const THEMES = [
       { theme:'Feedback frequency & recognition', mentions:54, action:'Bi-weekly 1:1s, public shoutouts, quality feedback loops.' },
       { theme:'Tool lag / loading delays', mentions:46, action:'P0 engineering: next-task load, submit delay, CDN/cache.' },
@@ -543,15 +792,24 @@
       const pct = Math.max(0, Math.min(100, (v / 5) * 100));
       return `<div class="score-bar" title="${v}"><i style="width:${pct}%"></i></div>`;
     }
+    function wfStatusBadge(st) {
+      const map = { TOP: 'top', CORE: 'ok', WATCH: 'med', RISK: 'high', 'LOW N': 'ok', BOTTOM: 'bottom' };
+      return `<span class="badge ${map[st] || 'ok'}">${st}</span>`;
+    }
+
     function filteredTls() {
       const center = document.getElementById('filterCenter').value;
       const flag = document.getElementById('filterFlag').value;
+      const wf = document.getElementById('filterWorkflow').value;
       const q = document.getElementById('searchTl').value.trim().toLowerCase();
       return TLS.filter(t => {
         if (flag !== 'all' && t.flag !== flag) return false;
         if (center !== 'all' && !t.centers.split(',').map(s => s.trim()).includes(center) && t.centers !== center) {
-          // allow multi-center match
           if (!t.centers.includes(center)) return false;
+        }
+        if (wf !== 'all') {
+          const wfs = TL_WORKFLOWS[t.name] || [];
+          if (!wfs.includes(wf)) return false;
         }
         if (q && !t.name.toLowerCase().includes(q)) return false;
         return true;
@@ -582,11 +840,67 @@
 
     function renderOverviewAlerts() {
       document.getElementById('overviewAlerts').innerHTML = `
-        <div class="alert"><strong>1. SLT location risk</strong><span>Lowest lead/job/tool/L&D cluster. Hosts critical TL cases (Rupsha, Pradipta, Sanglap).</span></div>
-        <div class="alert warn"><strong>2. Tool performance (org-wide)</strong><span>Avg 3.82 — lag (46), UI/camera (42), crashes (27). Biggest productivity drag.</span></div>
-        <div class="alert warn"><strong>3. Pune WFH fairness</strong><span>Repeated partiality complaints on STQC Sim Behaviour — policy + audit needed.</span></div>
-        <div class="alert ok"><strong>4. Strength to scale</strong><span>Lead avg 4.39; top TLs (Teegula, Rawoof, Bhupendar, Indrajit, Abhishek) are role models.</span></div>
+        <div class="alert"><strong>1. GEN-AI (LLM) + SLT risk</strong><span>Lowest workflow lead avg (~3.8) and location cluster. Critical culture/trust cases need HR/Ops handling.</span></div>
+        <div class="alert warn"><strong>2. Tool performance (org-wide)</strong><span>Avg 3.82 — lag, UI/camera, crashes. Worst felt on Nuro Context, Sim Collision, high-volume Sim Behaviour.</span></div>
+        <div class="alert warn"><strong>3. Sim Behaviour @ Pune WFH</strong><span>Dominant workflow; STQC WFH partiality escalations — policy + audit needed.</span></div>
+        <div class="alert ok"><strong>4. LiDAR 3D Cuboid strength</strong><span>Best workflow scores (Lead ~4.7). Product asks are feature depth, not people issues — invest engineering.</span></div>
       `;
+    }
+
+    function renderWorkflow() {
+      const rows = [...WORKFLOWS].sort((a, b) => b.n - a.n);
+      const core = rows.filter(w => w.n >= 5);
+      const avg = (k) => {
+        const xs = core.map(w => w[k]).filter(v => v != null);
+        return xs.length ? (xs.reduce((a, b) => a + b, 0) / xs.length) : 0;
+      };
+      document.getElementById('wfKpiGrid').innerHTML = [
+        { label: 'Workflows tracked', value: WORKFLOWS.length, sub: core.length + ' with n≥5', cls: '' },
+        { label: 'Largest workflow', value: 'Sim Behaviour', sub: rows[0].n + ' attributed resp.', cls: '' },
+        { label: 'Best lead (n≥5)', value: core.slice().sort((a,b)=>b.lead-a.lead)[0].lead.toFixed(2), sub: core.slice().sort((a,b)=>b.lead-a.lead)[0].workflow, cls: 'good' },
+        { label: 'Risk workflow', value: 'GEN-AI (LLM)', sub: 'Lead ' + WORKFLOWS.find(w=>w.workflow==='GEN-AI (LLM)').lead.toFixed(2), cls: 'bad' }
+      ].map(i => `
+        <div class="kpi">
+          <div class="label">${i.label}</div>
+          <div class="value ${i.cls}">${i.value}</div>
+          <div class="sub">${i.sub}</div>
+        </div>`).join('');
+
+      document.querySelector('#wfTable tbody').innerHTML = rows.map((w, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td><strong>${w.workflow}</strong></td>
+          <td>${w.n}</td>
+          <td class="${scoreColor(w.lead)}">${w.lead.toFixed(2)} ${bar(w.lead)}</td>
+          <td class="${scoreColor(w.job)}">${w.job.toFixed(2)}</td>
+          <td class="${scoreColor(w.tool)}">${w.tool.toFixed(2)}</td>
+          <td class="${scoreColor(w.ld)}">${w.ld.toFixed(2)}</td>
+          <td>${w.wfh}%</td>
+          <td>${w.centers}</td>
+          <td style="color:var(--muted);max-width:200px">${w.topLeads}</td>
+          <td>${wfStatusBadge(w.status)}</td>
+          <td style="color:var(--muted);max-width:260px">${w.focus}</td>
+        </tr>`).join('');
+
+      document.getElementById('wfRisks').innerHTML = `
+        <div class="alert"><strong>GEN-AI (LLM) — RISK</strong><span>Lead ${WORKFLOWS.find(w=>w.workflow==='GEN-AI (LLM)').lead} · Culture/trust verbatims · triage tool task-count bugs · case management required.</span></div>
+        <div class="alert warn"><strong>Nuro Context mapping — WATCH</strong><span>Tool hang/lag dominates; broadcast client rule updates to all production; multi-workflow learning demand.</span></div>
+        <div class="alert warn"><strong>Sim Collision — WATCH</strong><span>Tool ${WORKFLOWS.find(w=>w.workflow==='Sim Collision').tool} · measuring/camera/zoom backlog · shift WLB themes.</span></div>
+        <div class="alert warn"><strong>Sim Behaviour — CORE volume risk</strong><span>n=${WORKFLOWS[0].n} · lag/crash + Pune WFH policy + Hyderabad stability/leave — owns most org signal.</span></div>
+        <div class="alert ok"><strong>LiDAR 3D Cuboid — TOP</strong><span>Lead ${WORKFLOWS.find(w=>w.workflow==='LiDAR 3D Cuboid').lead} · invest in cuboid/3D UX; use TLs as peer coaches.</span></div>
+      `;
+
+      document.getElementById('wfDeepDive').innerHTML = WORKFLOWS.filter(w => w.n >= 5 || w.status === 'RISK').map(w => `
+        <div class="list-item">
+          <h3>${w.deep.title} ${wfStatusBadge(w.status)}</h3>
+          ${w.deep.points.map(p => `<p style="margin:6px 0">• ${p}</p>`).join('')}
+          <div class="pill-row">
+            <span class="pill">n=${w.n}</span>
+            <span class="pill">Lead ${w.lead}</span>
+            <span class="pill">Tool ${w.tool}</span>
+            <span class="pill">WFH ${w.wfh}%</span>
+          </div>
+        </div>`).join('');
     }
 
     function renderTlTable() {
@@ -852,6 +1166,116 @@
           plugins: { legend: { position: 'right', labels: { color: '#e8eefc', boxWidth: 10, font: { size: 10 } } } }
         }
       });
+
+      // Workflow overview (bubble-like via bar of volume + lead)
+      const wfMain = WORKFLOWS.filter(w => w.n >= 2).sort((a,b) => b.n - a.n);
+      const ovEl = document.getElementById('chartWfOverview');
+      if (ovEl) {
+        destroyChart('wfOverview');
+        charts.wfOverview = new Chart(ovEl, {
+          type: 'bar',
+          data: {
+            labels: wfMain.map(w => w.workflow),
+            datasets: [
+              { label: 'Lead score', data: wfMain.map(w => w.lead), backgroundColor: '#5b8cffaa', yAxisID: 'y' },
+              { label: 'Tool score', data: wfMain.map(w => w.tool), backgroundColor: '#f59e0baa', yAxisID: 'y' },
+              { label: 'Responses (÷40)', data: wfMain.map(w => w.n / 40), backgroundColor: '#22d3ee55', yAxisID: 'y', type: 'line', borderColor: '#22d3ee', tension: 0.3, pointRadius: 4 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#e8eefc', boxWidth: 12 } },
+              tooltip: { callbacks: {
+                afterBody: (items) => {
+                  const w = wfMain[items[0].dataIndex];
+                  return `Actual responses: ${w.n}`;
+                }
+              }}
+            },
+            scales: {
+              y: { min: 0, max: 5.2, ticks: { color: '#93a0b8' }, grid: { color: '#243049' }, title: { display: true, text: 'Score (line = n/40)', color: '#93a0b8' } },
+              x: { ticks: { color: '#e8eefc', maxRotation: 35, font: { size: 10 } }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Workflow grouped bars
+      const wb = document.getElementById('chartWfBars');
+      if (wb) {
+        const wfs = WORKFLOWS.filter(w => w.n >= 5);
+        destroyChart('wfBars');
+        charts.wfBars = new Chart(wb, {
+          type: 'bar',
+          data: {
+            labels: wfs.map(w => w.workflow),
+            datasets: [
+              { label: 'Lead', data: wfs.map(w => w.lead), backgroundColor: '#5b8cffaa' },
+              { label: 'Job', data: wfs.map(w => w.job), backgroundColor: '#22d3eeaa' },
+              { label: 'Tool', data: wfs.map(w => w.tool), backgroundColor: '#f59e0baa' },
+              { label: 'L&D', data: wfs.map(w => w.ld), backgroundColor: '#a78bfaaa' }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#e8eefc', boxWidth: 12 } } },
+            scales: {
+              y: { min: 2.5, max: 5, ticks: { color: '#93a0b8' }, grid: { color: '#243049' } },
+              x: { ticks: { color: '#e8eefc', maxRotation: 30, font: { size: 10 } }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      const wv = document.getElementById('chartWfVolume');
+      if (wv) {
+        destroyChart('wfVolume');
+        charts.wfVolume = new Chart(wv, {
+          type: 'doughnut',
+          data: {
+            labels: WORKFLOWS.map(w => w.workflow),
+            datasets: [{
+              data: WORKFLOWS.map(w => w.n),
+              backgroundColor: ['#5b8cff','#22d3ee','#a78bfa','#22c55e','#f59e0b','#ef4444','#94a3b8','#f472b6']
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'right', labels: { color: '#e8eefc', boxWidth: 10, font: { size: 10 } } } }
+          }
+        });
+      }
+
+      const wt = document.getElementById('chartWfThemes');
+      if (wt) {
+        const themeKeys = ['tool_lag_crash', 'camera_ui', 'ld_training', 'equal_treatment', 'shift_wlb', 'wfh_policy', 'client_qc'];
+        const labels = ['Lag/crash', 'Camera/UI', 'L&D', 'Equal treat.', 'Shift/WLB', 'WFH policy', 'Client QC'];
+        const big = WORKFLOWS.filter(w => w.n >= 5);
+        destroyChart('wfThemes');
+        charts.wfThemes = new Chart(wt, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: big.map((w, i) => {
+              const colors = ['#5b8cff','#22d3ee','#a78bfa','#f59e0b','#ef4444'];
+              return {
+                label: w.workflow,
+                data: themeKeys.map(k => (w.themes && w.themes[k]) || 0),
+                backgroundColor: colors[i % colors.length] + 'cc'
+              };
+            })
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#e8eefc', boxWidth: 10, font: { size: 10 } } } },
+            scales: {
+              y: { ticks: { color: '#93a0b8' }, grid: { color: '#243049' }, title: { display: true, text: 'Mentions', color: '#93a0b8' } },
+              x: { ticks: { color: '#e8eefc', font: { size: 10 } }, grid: { display: false } }
+            }
+          }
+        });
+      }
     }
 
     function refresh() {
@@ -873,6 +1297,7 @@
 
     // Filters
     document.getElementById('filterCenter').addEventListener('change', refresh);
+    document.getElementById('filterWorkflow').addEventListener('change', refresh);
     document.getElementById('filterFlag').addEventListener('change', refresh);
     document.getElementById('searchTl').addEventListener('input', refresh);
 
@@ -887,7 +1312,7 @@
       });
     });
 
-    // Init center filter
+    // Init center + workflow filters
     const centers = [...new Set(LOCATIONS.map(l => l.center))].sort();
     const sel = document.getElementById('filterCenter');
     centers.forEach(c => {
@@ -895,10 +1320,17 @@
       o.value = c; o.textContent = c;
       sel.appendChild(o);
     });
+    const wfSel = document.getElementById('filterWorkflow');
+    WORKFLOWS.forEach(w => {
+      const o = document.createElement('option');
+      o.value = w.workflow; o.textContent = w.workflow + ' (n=' + w.n + ')';
+      wfSel.appendChild(o);
+    });
 
     renderKpis();
     renderOverviewAlerts();
     renderTlTable();
+    renderWorkflow();
     renderLocTable();
     renderFocus();
     renderThemes();

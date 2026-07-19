@@ -163,5 +163,71 @@ function buildTlDashboard() {
   locSheet.setFrozenRows(1);
   locSheet.autoResizeColumns(1, 8);
 
-  SpreadsheetApp.getUi().alert('Dashboard tabs refreshed: TL_Scorecard, Location_Scorecard');
+  // Workflow scorecard
+  var colWf = findCol(['workflows you work', 'select the workflows', 'workflow']);
+  var byWf = {};
+  if (colWf >= 0) {
+    for (var r2 = 1; r2 < values.length; r2++) {
+      var row2 = values[r2];
+      var wfRaw = String(row2[colWf] || '').trim();
+      if (!wfRaw) continue;
+      var parts = wfRaw.split(/[,;|/]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      if (!parts.length) parts = [wfRaw];
+
+      var leadScores2 = leadCols.map(function (c) { return num(row2[c]); });
+      var toolScores2 = toolCols.map(function (c) { return num(row2[c]); });
+      var job2 = colJob >= 0 ? num(row2[colJob]) : null;
+      var ld2 = colLd >= 0 ? num(row2[colLd]) : null;
+      var leadAvg2 = avg(leadScores2);
+      var toolAvg2 = avg(toolScores2);
+      var mode2 = colMode >= 0 ? String(row2[colMode] || '').trim().toUpperCase() : '';
+      var center2 = colCenter >= 0 ? String(row2[colCenter] || '').trim() : '';
+
+      parts.forEach(function (wfName) {
+        if (!byWf[wfName]) byWf[wfName] = { n: 0, lead: [], job: [], tool: [], ld: [], wfh: 0, centers: {} };
+        var W = byWf[wfName];
+        W.n++;
+        if (leadAvg2 !== null) W.lead.push(leadAvg2);
+        if (job2 !== null) W.job.push(job2);
+        if (toolAvg2 !== null) W.tool.push(toolAvg2);
+        if (ld2 !== null) W.ld.push(ld2);
+        if (mode2.indexOf('WFH') !== -1) W.wfh++;
+        if (center2) W.centers[center2] = (W.centers[center2] || 0) + 1;
+      });
+    }
+
+    var wfSheet = ss.getSheetByName('Workflow_Scorecard') || ss.insertSheet('Workflow_Scorecard');
+    wfSheet.clear();
+    var wfOut = [['Workflow', '# Resp', 'Lead Score', 'Job Sat', 'Tool Score', 'L&D', 'WFH %', 'Top Centers', 'Status']];
+    Object.keys(byWf).sort(function (a, b) {
+      return byWf[b].n - byWf[a].n;
+    }).forEach(function (name) {
+      var x = byWf[name];
+      var ls = avg(x.lead);
+      var centers = Object.keys(x.centers).sort(function (a, b) {
+        return x.centers[b] - x.centers[a];
+      }).slice(0, 3).join(', ');
+      var st = 'OK';
+      if (ls !== null && ls >= 4.5 && x.n >= 5) st = 'TOP';
+      if (ls !== null && (ls < 3.8 || (ls < 4.0 && x.n >= 5))) st = 'WATCH';
+      if (ls !== null && ls < 3.5) st = 'RISK';
+      if (x.n < 5) st = 'LOW N';
+      wfOut.push([
+        name,
+        x.n,
+        ls !== null ? Math.round(ls * 100) / 100 : '',
+        avg(x.job) !== null ? Math.round(avg(x.job) * 100) / 100 : '',
+        avg(x.tool) !== null ? Math.round(avg(x.tool) * 100) / 100 : '',
+        avg(x.ld) !== null ? Math.round(avg(x.ld) * 100) / 100 : '',
+        Math.round((x.wfh / x.n) * 1000) / 10,
+        centers,
+        st
+      ]);
+    });
+    wfSheet.getRange(1, 1, wfOut.length, wfOut[0].length).setValues(wfOut);
+    wfSheet.setFrozenRows(1);
+    wfSheet.autoResizeColumns(1, 9);
+  }
+
+  SpreadsheetApp.getUi().alert('Dashboard tabs refreshed: TL_Scorecard, Location_Scorecard, Workflow_Scorecard');
 }

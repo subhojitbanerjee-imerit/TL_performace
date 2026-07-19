@@ -1,0 +1,338 @@
+[
+  {
+    "workflow": "Sim Behaviour",
+    "n": 190,
+    "lead": 4.34,
+    "job": 4.32,
+    "tool": 3.99,
+    "ld": 4.3,
+    "wfh_pct": 8.4,
+    "wfo_pct": 25.8,
+    "top_centers": [
+      [
+        "Unknown",
+        130
+      ],
+      [
+        "Pune",
+        36
+      ],
+      [
+        "Hyderabad",
+        17
+      ],
+      [
+        "SLT",
+        4
+      ]
+    ],
+    "top_leads": [
+      [
+        "Karpe Gayatri",
+        43
+      ],
+      [
+        "Indrajit Lalaso Patil",
+        21
+      ],
+      [
+        "Shweta Dash",
+        20
+      ],
+      [
+        "Akshay Prashant Umredkar",
+        18
+      ],
+      [
+        "Aditee Naskar",
+        11
+      ]
+    ],
+    "themes": {
+      "tool_lag_crash": 51,
+      "shift_wlb": 11,
+      "equal_treatment": 17,
+      "ld_training": 33,
+      "wfh_policy": 5,
+      "client_qc": 8,
+      "camera_ui": 22,
+      "salary": 5
+    }
+  },
+  {
+    "workflow": "Sim Collision",
+    "n": 32,
+    "lead": 4.26,
+    "job": 4.11,
+    "tool": 3.6,
+    "ld": 4.09,
+    "wfh_pct": 9.4,
+    "wfo_pct": 21.9,
+    "top_centers": [
+      [
+        "Unknown",
+        23
+      ],
+      [
+        "Hyderabad",
+        4
+      ],
+      [
+        "Pune",
+        3
+      ],
+      [
+        "BRP",
+        2
+      ]
+    ],
+    "top_leads": [
+      [
+        "Karpe Gayatri",
+        13
+      ],
+      [
+        "Abhishek Rajan Muniswami",
+        12
+      ],
+      [
+        "Chirantan Baidya",
+        3
+      ],
+      [
+        "Mayur Dnyaneshwar Nirgule",
+        2
+      ],
+      [
+        "Anupam Das",
+        1
+      ]
+    ],
+    "themes": {
+      "tool_lag_crash": 7,
+      "ld_training": 7,
+      "shift_wlb": 8,
+      "camera_ui": 14,
+      "wfh_policy": 1,
+      "equal_treatment": 6,
+      "salary": 1
+    }
+  },
+  {
+    "workflow": "LiDAR 3D Cuboid",
+    "n": 25,
+    "lead": 4.72,
+    "job": 4.62,
+    "tool": 4.33,
+    "ld": 4.38,
+    "wfh_pct": 12.0,
+    "wfo_pct": 72.0,
+    "top_centers": [
+      [
+        "Hyderabad",
+        16
+      ],
+      [
+        "SLT",
+        4
+      ],
+      [
+        "Unknown",
+        4
+      ],
+      [
+        "MBZ",
+        1
+      ]
+    ],
+    "top_leads": [
+      [
+        "Abdul Rasheed Shaik",
+        10
+      ],
+      [
+        "Teegula Kavya Shree",
+        9
+      ],
+      [
+        "Murtuza Taher",
+        2
+      ],
+      [
+        "Samsher Alam",
+        2
+      ],
+      [
+        "Subham Mukhrjee",
+        1
+      ]
+    ],
+    "themes": {
+      "camera_ui": 25,
+      "tool_lag_crash": 2,
+      "ld_training": 1
+    }
+  },
+  {
+    "workflow": "Nuro Context mapping",
+    "n": 13,
+    "lead": 4.23,
+    "job": null,
+    "tool": null,
+    "ld": 4.0,
+    "wfh_pct": 0.0,
+    "wfo_pct": 0.0,
+    "top_centers": [
+      [
+        "Unknown",
+        13
+      ]
+    ],
+    "top_leads": [
+      [
+        "Edupalli Asritha Nayani",
+        7
+      ],
+      [
+        "Sudip Sen",
+        2
+      ],
+      [
+        "Rupsha Chakraborty",
+        1
+      ],
+      [
+        "Shahbaz Rashid",
+        1
+      ],
+      [
+        "Anumita Das",
+        1
+      ]
+    ],
+    "themes": {
+      "tool_lag_crash": 7,
+      "camera_ui": 2,
+      "ld_training": 1,
+      "client_qc": 4
+    }
+  },
+  {
+    "workflow": "GEN-AI (LLM)",
+    "n": 9,
+    "lead": 3.82,
+    "job": 5.0,
+    "tool": 4.4,
+    "ld": 4.17,
+    "wfh_pct": 33.3,
+    "wfo_pct": 11.1,
+    "top_centers": [
+      [
+        "Unknown",
+        6
+      ],
+      [
+        "SLT",
+        2
+      ],
+      [
+        "Pune",
+        1
+      ]
+    ],
+    "top_leads": [
+      [
+        "Debipriya Banerjee",
+        7
+      ],
+      [
+        "Sanglap Kundu",
+        2
+      ]
+    ],
+    "themes": {
+      "equal_treatment": 2,
+      "wfh_policy": 1,
+      "salary": 1,
+      "shift_wlb": 1,
+      "ld_training": 1
+    }
+  },
+  {
+    "workflow": "Visual Similarity Search",
+    "n": 2,
+    "lead": 4.5,
+    "job": 4.0,
+    "tool": 4.0,
+    "ld": 4.0,
+    "wfh_pct": 0.0,
+    "wfo_pct": 50.0,
+    "top_centers": [
+      [
+        "SLT",
+        1
+      ],
+      [
+        "Unknown",
+        1
+      ]
+    ],
+    "top_leads": [
+      [
+        "Rahuljeet Banerjee",
+        1
+      ],
+      [
+        "Shweta Dash",
+        1
+      ]
+    ],
+    "themes": {}
+  },
+  {
+    "workflow": "Audio Siren",
+    "n": 1,
+    "lead": 4.78,
+    "job": 4.0,
+    "tool": 4.0,
+    "ld": 4.0,
+    "wfh_pct": 0.0,
+    "wfo_pct": 100.0,
+    "top_centers": [
+      [
+        "Hyderabad",
+        1
+      ]
+    ],
+    "top_leads": [
+      [
+        "Sritama Sarkar",
+        1
+      ]
+    ],
+    "themes": {}
+  },
+  {
+    "workflow": "Unknown",
+    "n": 1,
+    "lead": 3.0,
+    "job": 3.0,
+    "tool": 2.6,
+    "ld": 4.0,
+    "wfh_pct": 0.0,
+    "wfo_pct": 100.0,
+    "top_centers": [
+      [
+        "SLT",
+        1
+      ]
+    ],
+    "top_leads": [
+      [
+        "Sanglap Kundu",
+        1
+      ]
+    ],
+    "themes": {}
+  }
+]
