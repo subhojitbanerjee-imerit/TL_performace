@@ -1,20 +1,79 @@
 /**
- * Paste into: Google Sheet → Extensions → Apps Script
+ * TL Performance Dashboard — standalone Apps Script
+ *
+ * Deploy as a standalone project (script.google.com → New project).
+ * Does NOT require binding to the spreadsheet.
+ *
+ * Spreadsheet:
+ *   https://docs.google.com/spreadsheets/d/1D_oYej7qjYxgWQ8XtHKceb6fEVJUlNZzLiOX2RQVb0k/
+ *
+ * Source tab gid (responses / consolidated data):
+ *   1126318129
+ *
  * Run: buildTlDashboard
+ * Creates/refreshes: TL_Scorecard, Location_Scorecard, Workflow_Scorecard, Period_Scorecard
  *
- * Assumes tab "responses_consolidated" with a header row.
- * Creates/refreshes tabs: TL_Scorecard, Location_Scorecard
- *
- * Header matching is fuzzy (case-insensitive contains).
+ * Requirements:
+ *   - This script's Google account must have at least Viewer (Editor preferred) on the sheet
+ *   - Enable Google Sheets API advanced service only if needed (not required for openById)
+ *   - Header matching is fuzzy (case-insensitive contains)
  */
 
+/** Target spreadsheet (standalone — do not rely on getActive). */
+var SPREADSHEET_ID = '1D_oYej7qjYxgWQ8XtHKceb6fEVJUlNZzLiOX2RQVb0k';
+
+/**
+ * Source data sheet gid from URL:
+ * .../edit?gid=1126318129#gid=1126318129
+ */
+var SOURCE_SHEET_GID = 1126318129;
+
+/** Fallback tab name if gid is not found */
+var SOURCE_SHEET_NAME = 'responses_consolidated';
+
+/**
+ * Open the configured spreadsheet by ID (standalone-safe).
+ */
+function getTargetSpreadsheet_() {
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
+
+/**
+ * Resolve source sheet by gid first, then by name.
+ */
+function getSourceSheet_(ss) {
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].getSheetId() === SOURCE_SHEET_GID) {
+      return sheets[i];
+    }
+  }
+  var byName = ss.getSheetByName(SOURCE_SHEET_NAME);
+  if (byName) return byName;
+  throw new Error(
+    'Source sheet not found. gid=' + SOURCE_SHEET_GID +
+    ' name=' + SOURCE_SHEET_NAME +
+    ' spreadsheet=' + SPREADSHEET_ID
+  );
+}
+
+/**
+ * Safe UI toast / alert (standalone has no bound UI sometimes).
+ */
+function notify_(message) {
+  try {
+    SpreadsheetApp.getUi().alert(message);
+  } catch (e) {
+    Logger.log(message);
+  }
+}
+
 function buildTlDashboard() {
-  var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('responses_consolidated');
-  if (!sh) throw new Error('Tab responses_consolidated not found');
+  var ss = getTargetSpreadsheet_();
+  var sh = getSourceSheet_(ss);
 
   var values = sh.getDataRange().getValues();
-  if (values.length < 2) throw new Error('No data');
+  if (values.length < 2) throw new Error('No data on source sheet: ' + sh.getName());
 
   var headers = values[0].map(function (h) { return String(h || '').trim(); });
   var hLower = headers.map(function (h) { return h.toLowerCase(); });
@@ -347,5 +406,24 @@ function buildTlDashboard() {
     wfSheet.autoResizeColumns(1, 12);
   }
 
-  SpreadsheetApp.getUi().alert('Dashboard tabs refreshed: TL_Scorecard, Location_Scorecard, Workflow_Scorecard, Period_Scorecard');
+  notify_(
+    'Dashboard refreshed on spreadsheet ' + SPREADSHEET_ID +
+    '\nSource: ' + sh.getName() + ' (gid ' + sh.getSheetId() + ')' +
+    '\nTabs: TL_Scorecard, Location_Scorecard, Workflow_Scorecard, Period_Scorecard'
+  );
+}
+
+/**
+ * Optional menu when script is later bound, or for testing from container.
+ * Standalone: run buildTlDashboard from the editor Run menu.
+ */
+function onOpen() {
+  try {
+    SpreadsheetApp.getUi()
+      .createMenu('TL Dashboard')
+      .addItem('Rebuild scorecards', 'buildTlDashboard')
+      .addToUi();
+  } catch (e) {
+    // Standalone project — no spreadsheet UI; ignore.
+  }
 }

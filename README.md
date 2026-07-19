@@ -62,14 +62,20 @@ Survey columns (plus period fields):
 Source sheet (private):  
 `responses_consolidated` on the iMerit survey Google Spreadsheet.
 
-### Google Sheet live scorecard
+### Google Sheet live scorecard (standalone)
 
-1. Open the survey spreadsheet  
-2. **Extensions → Apps Script**  
-3. Paste `Code.gs`  
-4. Run `buildTlDashboard`  
+`Code.gs` is configured for **standalone** deploy (not sheet-bound):
 
-This creates/refreshes **TL_Scorecard**, **Location_Scorecard**, **Workflow_Scorecard**, and **Period_Scorecard** tabs (each includes Year / Month / Month-Year for filtering).
+```javascript
+SPREADSHEET_ID = '1D_oYej7qjYxgWQ8XtHKceb6fEVJUlNZzLiOX2RQVb0k'
+SOURCE_SHEET_GID = 1126318129
+```
+
+1. [script.google.com](https://script.google.com) → New project  
+2. Paste `Code.gs`  
+3. Run **`buildTlDashboard`** (authorize; need Editor on the sheet)  
+
+Creates/refreshes **TL_Scorecard**, **Location_Scorecard**, **Workflow_Scorecard**, **Period_Scorecard** (with Year / Month / Month-Year).
 
 ---
 
